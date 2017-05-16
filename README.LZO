@@ -1,0 +1,24 @@
+
+The dual-license on OpenSSL clashes with the more restrictive GPL
+licensing on LZO.  In most cases, an exemption on the GPL-licensed
+product is ultimately required to ensure no barrier exists to using it
+with a project licensed under a less restrictive license, legally
+speaking.
+
+Markus Oberhumer granted an exemption to VTun with respect to clashing
+licenses and OpenSSL on 5 May 2003, with the following comments:
+
+Message-Id: <20030505155258.3025c056.markus@oberhumer.com>
+
+> Hi,
+> 
+> Anyway, I hope the following paragraph will suffice:
+> 
+>    Hereby I grant a special exception to the VTun project
+>    (http://vtun.sourceforge.net) to link the LZO library with
+>    the OpenSSL library (http://www.openssl.org).
+>   
+>    Markus F.X.J. Oberhumer
+> 
+> Regards,
+> Markus

@@ -1,0 +1,24 @@
+Traffic shaper implementation is now very close to perfect :)). 
+
+Shaper has been completely rewritten and implemented as LINKFD module. 
+Now it can work with compression and can shape Ethernet traffic.
+
+New shaper doesn't use timer, so the system calls don't need to be
+signals protected, it does not split traffic to small chunks and does
+not add TCP overhead. Since version 1.4 shaper doesn't use floating
+point calculations. 
+
+This shaper is designed to shape generic traffic, it means that the
+burst speed can vary slightly but the average result should be correct.
+Shaping algorithm now platform independent and you don't need to adjust 
+it manually. However it works better on the systems with higher HZ and
+more precise delays.
+
+Minimal speed is 8 kilobits/sec, maximal is limited only by the 
+capabilities of your system. On P200 with HZ=100, I've got accurate 
+shaping on 1024 kbits, with HZ=1024 everything fine on 8192 kbits.   
+
+If you have any suggestions, ideas, wishes send them to 
+vtun-users@lists.sourceforge.net
+ 
+Maxim Krasnyansky <max_mk@yahoo.com> 

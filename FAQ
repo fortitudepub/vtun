@@ -1,0 +1,184 @@
+VTun - Frequently Asked Questions
+
+1. General Questions
+1.1 What is VTun ?
+VTun is the easiest way to create Virtual Tunnels over TCP/IP networks
+with traffic shaping, compression, and encryption. 
+It supports IP, PPP, SLIP, Ethernet and other tunnel types.
+VTun is easily and highly configurable, it can be used for various
+network tasks.
+
+1.2 What does VTun stand for ?
+Virtual TUNnel.
+
+1.3 Whom do I contact for support ?
+Please send your suggestions, questions and problem descriptions to
+VTun mailing list vtun@office.satix.net
+
+1.4 Is VTun Y2K compliant?
+YES.
+
+1.5 Where can I download VTun package ?
+You can download complete VTun package from the following web sites:
+Primary:
+  http://vtun.sourceforge.net
+Mirrors:
+  http://vtun.saol.com
+  http://vtun.speedway.net
+  http://vtun.euronet.be
+
+1.6 Can I establish VTun tunnel with Windows machine ?
+Unfortunately there is no VTun client for Windows yet.
+We a looking for a guru who will port VTun to Windows.
+
+1.7 Can I establish VTun tunnel with Cisco ?
+No. VTun doesn't support tunneling with Cisco.
+
+1.8 Does VTun support PPTP, L2TP, IPsec ?
+VTun uses it's own simple and efficient protocol with TCP or UDP.
+It doesn't support PPTP, L2TP, IPsec.
+
+1.9 What platforms are supported by VTun ?
+VTun was developed on Linux and then ported to several other OS:
+   Linux (any glibc based distribution)
+   Solaris
+   FreeBSD, OpenBSD, NetBSD and other BSD clones.
+
+1.10 Does VTun server support multiple clients ?
+Sure. Number of the clients is limited only by the capabilities of 
+your machine.
+
+1.11 How many tunnels can VTun handle ?
+Number of the tunnels is limited only by the capabilities of your
+machine.
+
+1.12 What do I need to run VTun ?
+You should install and configure VTun package and read documentation.
+Usually you'll need: 
+   Universal TUN/TAP device driver (http://vtun.sourceforge.net/tun)
+   PPP driver and pppd.
+
+1.13 What hardware do I need to run VTun ?
+Hardware requirements depends on your configuration:
+   486DX2/66/16Mb will handle simple tunnels without compression 
+   and encryption.
+   P200/64Mb will handle several medium speed tunnels with compression 
+   and encryption without any problem.
+   Celeron 400/64Mb, perfectly encrypts and compresses high speed
+   channels like 2Mbits.
+Real life examples:
+   PII466/128Mb was compressing several 3-4Mbits tunnels.  
+   AlphaXL 266/64Mb was compressing and shaping about 10-50 tunnels 
+   from 64Kbit to 512Kbit.
+   P200MMX/64Mb with about 100 tunnels over loopback.
+
+1.14 VTun supports many tunnel types, which type should I use ?
+Well, it is not very easy to answer this question in the FAQ.
+Please read documentation which comes with VTun package and visit 
+VTun web site http://vtun.sourceforge.net
+
+1.15 Where can I find configuration recommendations and examples ?
+VTun package contains several config file samples.
+Please read README.Setup
+
+1.16 Why ZLIB compression does not work with UDP protocol ?
+UDP doesn't not provide reliable transport, and some frames could be 
+lost on unreliable links. VTun does not have any retransmition or 
+recovery algorithm for the lost UDP frames, because retransmition will
+be handled by Upper layers.
+You should use LZO compression with UDP protocol.    
+
+1.17 Why PPP tunnel is unstable over UDP ?  
+Explanation is the same as with above case. Use TCP for PPP tunnels or 
+use TUN instead of PPP, since tun device is completely the same with 
+ppp device for the kernel. 
+
+1.18 Why do routes specified after 'ppp' command in config file produce errors and don't install correctly ?  
+Actually there is no straight way to determine when pppd has established 
+connection with the other end. VTun execute those route commands right 
+after the launch of pppd and if PPP link is not established, route 
+commands will fail. Since version 2.0b3, VTun delays 10 seconds before 
+issuing the route commands, which should fix almost all cases.  
+I'll think about more elegant way to fix this problem.
+
+1.19 How secure is VTun ?
+Well. VTun doesn't try to be the MOST secure tunneling software in the 
+world, it tries to be fast, stable, rich of features, easy to use 
+and secure enough instead.
+VTun uses Challenge Based Authentication and doesn't transfer passwords 
+in clear text. Encryption module uses MD5 for 128 bits key generation 
+and BlowFish algorithm for actual data encryption.
+There could be some weaknesses in key generation method, we will try 
+to address them in future releases. 
+
+1.20 Who has developed so nice and cool software ?
+Thanks :). You can find list of VTun team members on the web site or
+in the 'Credits' file in VTun package.  
+
+1.21 I don't like VTun where can I send complains ?
+You can send them to /dev/null. 
+
+1.22 Where can I get more information about VTun ?
+VTun package contains: 
+   Manual page for vtund.
+   Manual page for configuration file.
+   Fully documented config file.
+   Several README files.
+
+1.23 Can I use vtun over SSH ?
+Yes, via the port forwarding feature of ssh.  Don't enable vtun's
+encryption as ssh does its own encryption.  Also, make sure to select
+the tcp protocol as SSH can forward tcp but not udp.  An example
+session might look something like this:
+
+home$ ssh -L 5000:localhost:5000 work.megacorp.com
+(authenticate if necessary)
+work$ vtund -s home_tunnel_config
+...
+home$ vtund home_tunnel_config localhost
+
+1.24 Is it possible to establish a vtun link from a client behind NAT or a firewall?
+Yes it is, but you need to use TCP protocol.
+
+2. Error Messages
+2.1 Why do I see no vtund log and error messages ?
+On several Unices, FreeBSD for example, syslog doesn't log message 
+with INFO priority, by default. 
+You should add "*.info;" to the line with /var/log/messages in 
+/etc/syslog.conf.
+
+2.2 Why do I get "Input/output error" pppd error message ?
+This usually means that vtund on other side has dropped connection,
+check logs on other side.
+
+2.3 Why do I get "couldn't find any suitable secret (password)" pppd error message ?
+New versions of pppd use authentication by default.
+Just add "noauth" option to ppp command.
+
+2.4 Why do I get "XXXX returned error Y" error message ?
+Usually this means that you use incorrect syntax for that command.
+Also please read question 1.19 about routes and pppd.
+
+2.5 Why do I get "Serial line is looped back" pppd error message ?
+Sometimes pppd incorrectly decides that pseudo terminal is looped back. 
+Just add "nomagic" option to ppp command.
+
+2.6 Why do I get "Can't allocate tun device" or "Can't allocate tap device" error messages ?
+This error means that Universal TUN/TAP driver module is not loaded
+or you do not have correct /dev/tunXX or /dev/tapXX device nodes.
+Make sure you have installed and configured Universal TUN/TAP device
+driver (http://vtun.sourceforge.net/tun)
+
+2.7 Why do I get "LZO compression is not supported" error message ?
+This error means that LZO compression is not compiled in.
+You will have to download binary VTun package or recompile vtund with
+LZO support.
+
+2.8 Why do I get "expecting WORD at line xxx" error message ?
+This usually means that you are using a password that contain only
+numerical characters.
+VTun passwords must be alpha characters or a mixture of alpha and
+numerical characters.
+
+If you have any unanswered question please send it to the mailing list 
+vtun-users@lists.sourceforge.net
