@@ -1,0 +1,22 @@
+#### Ubuntu 16.04 安装使用
+
+编译时要安装：
+build-essentials（转发节点多半已经安装）
+apt-get install bison flex zlib1g-dev zlib1g-dev liblzo2-dev libssl-dev
+
+# 我们只考虑在ip层实现限速等高级逻辑，这层tcp只应当极度简单，不做任何压缩及加密
+# gfw理论上难以再分析出内层里的ip(tun ip)+tcp + ss/openvpn
+ ./configure --prefix=/opt/vtun --disable-ssl  --disable-shaper
+
+# 编译问题解决：
+conffile.y中clear_nat_hack***这个函数去掉inline，然后main.c中如果找不到这个符号，增加extern即可编译通过。
+
+
+#### 服务器配置及启动
+
+
+/opt/vtun/sbin/vtund  -s -f /opt/etc/vtun/vtund.conf
+
+#### 客户端配置及启动
+
+/opt/vtun/sbin/vtund -f /opt/etc/vtun/vtund.conf -p tky2 45.77.29.109
