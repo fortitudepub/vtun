@@ -92,7 +92,8 @@ int kcpoudp_write(int fd, char *buf, int len, struct vtun_host *host)
      len  = (len & VTUN_FSIZE_MASK) + sizeof(short);
 
      if( (ikcp_send(host->kcp, ptr, len)) < 0 ) {
-	      return -1;
+         // Do no propogate ikcp error.
+	      return 0;
      }
 
      return 0;
@@ -127,7 +128,7 @@ int kcpoudp_read(int fd, char *buf, int len, struct vtun_host *host)
 
      while( 1 ){
          // use mtu as udp packet size, can't be that bigger.
-        if( (rlen = read(fd, tmp_buf, 1500)) < 0 ){
+        if( (rlen = read(fd, tmp_buf, 1500)) < 0 ) {
 	   if( errno == EAGAIN || errno == EINTR ) {
            continue;
        }
@@ -145,7 +146,9 @@ int kcpoudp_read(int fd, char *buf, int len, struct vtun_host *host)
      // read packet header and read length.
      if (pending_frame_data_len == 0) {
          if ((rlen = ikcp_recv(host->kcp, tmp_buf, sizeof(short))) < 0) {
-             return VTUN_BAD_FRAME;
+             // we should convert it to harmless value to let linkerfd
+             // continue to operate.
+             return VTUN_ECHO_REP;
          }
 
          // Update the status bits which will be used in next calls.
@@ -160,7 +163,10 @@ int kcpoudp_read(int fd, char *buf, int len, struct vtun_host *host)
      if ((rlen = ikcp_recv(host->kcp, tmp_buf, flen)) < 0) {
          // In this case, we reserve pending_frame_data_len and last_hdr
          // when this function called next time, we can fetch full packet...
-         return VTUN_BAD_FRAME;
+         // If ikcp_recv signal us EAGAIN through negative value
+         // we should convert it to harmless value to let linkerfd
+         // continue to operate.
+         return VTUN_ECHO_REP;
      }
 
      // FULL FRAME is fetched...
