@@ -144,6 +144,20 @@ int tunnel(struct vtun_host *host)
  	   proto_write = udp_write;
 	   proto_read = udp_read;
 
+         case VTUN_KCPOUDP:
+	   if( (opt = kcpoudp_session(host)) == -1){
+	      vtun_syslog(LOG_ERR,"Can't establish KCPOUDP session");
+	      close(fd[1]);
+	      if( ! ( host->persist == VTUN_PERSIST_KEEPIF ) )
+		 close(fd[0]);
+	      return 0;
+	   } 	
+
+       // Actually this is not used now.
+       // hard coded to linkfd.c
+       // 	   proto_write = kcpoudp_write;
+	   //proto_read = kcpoudp__read;
+
 	   break;
      }
 
@@ -240,6 +254,11 @@ int tunnel(struct vtun_host *host)
 	}
 
        	close(host->loc_fd);
+
+        // when exist, release kcp.
+        if (host->kcp != 0) {
+            ikcp_release(host->kcp);
+        }
      }
 
      /* Close all other fds */

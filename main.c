@@ -140,7 +140,7 @@ int main(int argc, char *argv[], char *env[])
      }
 
      extern  void clear_nat_hack_flags(int svr);
-       
+
 	clear_nat_hack_flags(svr);
 
      if(!svr){

@@ -32,6 +32,7 @@
 #include <sys/time.h>
 #include <syslog.h>
 #include <time.h>
+#include <math.h>
 
 #ifdef HAVE_SYS_RESOURCE_H
 #include <sys/resource.h>
@@ -201,6 +202,18 @@ void sig_alarm(int sig)
 	stat_timer = VTUN_STAT_IVAL;
      }
 
+     // drive kcp works.
+     if (lfd_host->kcp != 0) {
+         long ms;
+         time_t s;
+         struct timespec spec;
+         clock_gettime(CLOCK_REALTIME, &spec);
+         s = spec.tv_sec;
+         ms = round(spec.tv_nsec/1000000);
+         // use current ms to drive the kcp.
+         kcpoudp_update(lfd_host, s*1000+ms);
+     }
+
      if ( ka_timer*stat_timer ){
        alarm( (ka_timer < stat_timer) ? ka_timer : stat_timer );
      } else {
@@ -215,6 +228,152 @@ static void sig_usr1(int sig)
      lfd_host->stat.comp_in = lfd_host->stat.comp_out = 0; 
 }
 
+// KCP KLUDGE.
+int lfd_linker_kcp(void)
+{
+     int fd1 = lfd_host->rmt_fd;
+     int fd2 = lfd_host->loc_fd; 
+     register int len, fl;
+     struct timeval tv;
+     char *buf, *out;
+     fd_set fdset;
+     int maxfd, idle = 0, tmplen;
+
+     if( !(buf = lfd_alloc(VTUN_FRAME_SIZE + VTUN_FRAME_OVERHEAD)) ){
+	vtun_syslog(LOG_ERR,"Can't allocate buffer for the linker"); 
+        return 0; 
+     }
+
+    // No need, we are always using public IP to reach nodes.
+    /*  /\* Delay sending of first UDP packet over broken NAT routers */
+	/* because we will probably be disconnected.  Wait for the remote */
+	/* end to send us something first, and use that connection. *\/ */
+    /*  if (!VTUN_USE_NAT_HACK(lfd_host)) */
+    /*  kcpoudp_write(fd1, buf, VTUN_ECHO_REQ, lfd_host); */
+
+     maxfd = (fd1 > fd2 ? fd1 : fd2) + 1;
+
+     linker_term = 0;
+     while( !linker_term ){
+	errno = 0;
+
+        /* Wait for data */
+        FD_ZERO(&fdset);
+	FD_SET(fd1, &fdset);
+	FD_SET(fd2, &fdset);
+
+ 	tv.tv_sec  = 0;
+	tv.tv_usec = lfd_host->ka_interval * 1000; // ka_interval is redefined as millis
+
+	if( (len = select(maxfd, &fdset, NULL, NULL, &tv)) < 0 ){
+	   if( errno != EAGAIN && errno != EINTR )
+	      break;
+	   else
+	      continue;
+	}
+
+	if( ka_need_verify ){
+	  if( idle > lfd_host->ka_maxfail ){
+	    vtun_syslog(LOG_INFO,"Session %s network timeout", lfd_host->host);
+	    break;
+	  }
+	  if (idle++ > 0) {  /* No input frames, check connection with ECHO */
+          if( kcpoudp_write(fd1, buf, VTUN_ECHO_REQ, lfd_host) < 0 ){
+	      vtun_syslog(LOG_ERR,"Failed to send ECHO_REQ");
+	      break;
+	    }
+	  }
+	  ka_need_verify = 0;
+	}
+
+	if (send_a_packet)
+        {
+           send_a_packet = 0;
+           tmplen = 1;
+	   lfd_host->stat.byte_out += tmplen; 
+	   if( (tmplen=lfd_run_down(tmplen,buf,&out)) == -1 )
+	      break;
+	   if( tmplen && kcpoudp_write(fd1, out, tmplen, lfd_host) < 0 )
+	      break;
+	   lfd_host->stat.comp_out += tmplen; 
+        }
+
+	/* Read frames from network(fd1), decode and pass them to 
+         * the local device (fd2) */
+	if( FD_ISSET(fd1, &fdset) && lfd_check_up() ){
+	   idle = 0;  ka_need_verify = 0;
+	   if( (len=kcpoudp_read(fd1, buf, VTUN_FRAME_SIZE + VTUN_FRAME_OVERHEAD, lfd_host)) <= 0 )
+	      break;
+
+	   /* Handle frame flags */
+	   fl = len & ~VTUN_FSIZE_MASK;
+           len = len & VTUN_FSIZE_MASK;
+	   if( fl ){
+	      if( fl==VTUN_BAD_FRAME ){
+		 vtun_syslog(LOG_ERR, "Received bad frame");
+		 continue;
+	      }
+	      if( fl==VTUN_ECHO_REQ ){
+		 /* Send ECHO reply */
+              if( kcpoudp_write(fd1, buf, VTUN_ECHO_REP, lfd_host) < 0 )
+		    break;
+		 continue;
+	      }
+   	      if( fl==VTUN_ECHO_REP ){
+		 /* Just ignore ECHO reply, ka_need_verify==0 already */
+		 continue;
+	      }
+	      if( fl==VTUN_CONN_CLOSE ){
+	         vtun_syslog(LOG_INFO,"Connection closed by other side");
+		 break;
+	      }
+	   }   
+
+	   lfd_host->stat.comp_in += len; 
+	   if( (len=lfd_run_up(len,buf,&out)) == -1 )
+	      break;	
+	   if( len && dev_write(fd2,out,len) < 0 ){
+              if( errno != EAGAIN && errno != EINTR )
+                 break;
+              else
+                 continue;
+           }
+	   lfd_host->stat.byte_in += len; 
+	}
+
+	/* Read data from the local device(fd2), encode and pass it to 
+         * the network (fd1) */
+	if( FD_ISSET(fd2, &fdset) && lfd_check_down() ){
+	   if( (len = dev_read(fd2, buf, VTUN_FRAME_SIZE)) < 0 ){
+	      if( errno != EAGAIN && errno != EINTR )
+	         break;
+	      else
+		 continue;
+	   }
+	   if( !len ) break;
+	
+	   lfd_host->stat.byte_out += len; 
+	   if( (len=lfd_run_down(len,buf,&out)) == -1 )
+	      break;
+	   if( len && kcpoudp_write(fd1, out, len, lfd_host) < 0 )
+	      break;
+	   lfd_host->stat.comp_out += len; 
+	}
+     }
+     if( !linker_term && errno )
+	vtun_syslog(LOG_INFO,"%s (%d)", strerror(errno), errno);
+
+     if (linker_term == VTUN_SIG_TERM) {
+       lfd_host->persist = 0;
+     }
+
+     /* Notify other end about our close */
+     kcpoudp_write(fd1, buf, VTUN_CONN_CLOSE, lfd_host);
+     lfd_free(buf);
+
+     return 0;
+}
+
 int lfd_linker(void)
 {
      int fd1 = lfd_host->rmt_fd;
@@ -224,6 +383,10 @@ int lfd_linker(void)
      char *buf, *out;
      fd_set fdset;
      int maxfd, idle = 0, tmplen;
+
+     if (lfd_host->kcp != 0) {
+         return lfd_linker_kcp();
+     }
 
      if( !(buf = lfd_alloc(VTUN_FRAME_SIZE + VTUN_FRAME_OVERHEAD)) ){
 	vtun_syslog(LOG_ERR,"Can't allocate buffer for the linker"); 

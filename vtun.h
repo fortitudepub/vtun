@@ -24,6 +24,7 @@
 #define _VTUN_H
 
 #include "llist.h"
+#include "ikcp.h"
 
 /* Default VTUN port */
 #define VTUN_PORT 5000
@@ -115,6 +116,9 @@ struct vtun_host {
    struct vtun_stat stat;
 
    struct vtun_sopt sopt;
+
+    // KCP KLUDGE.
+    ikcpcb *kcp;
 };
 
 extern llist host_list;
@@ -126,10 +130,11 @@ extern llist host_list;
 #define VTUN_TUN        0x0800
 #define VTUN_TYPE_MASK  (VTUN_TTY | VTUN_PIPE | VTUN_ETHER | VTUN_TUN) 
 
-#define VTUN_TCP        0x0010  
-#define VTUN_UDP        0x0020  
-#define VTUN_PROT_MASK  (VTUN_TCP | VTUN_UDP) 
-#define VTUN_KEEP_ALIVE 0x0040	
+#define VTUN_TCP        0x0010
+#define VTUN_UDP        0x0020
+#define VTUN_KCPOUDP    0x0040
+#define VTUN_PROT_MASK  (VTUN_TCP | VTUN_UDP | VTUN_KCPOUDP) 
+#define VTUN_KEEP_ALIVE 0x0080
 
 #define VTUN_ZLIB       0x0001
 #define VTUN_LZO        0x0002
@@ -231,6 +236,6 @@ void client(struct vtun_host *host);
 int  tunnel(struct vtun_host *host);
 int  read_config(char *file);
 struct vtun_host * find_host(char *host);
-inline void clear_nat_hack_flags(int svr);
+void clear_nat_hack_flags(int svr);
 
 #endif

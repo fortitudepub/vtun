@@ -75,6 +75,9 @@
 #include "lib.h"
 #include "netlib.h"
 
+#include "ikcp.h"
+#include "driver.h"
+
 /* Connect with timeout */
 int connect_t(int s, struct sockaddr *svr, time_t timeout) 
 {
@@ -136,6 +139,22 @@ unsigned long getifaddr(char * ifname)
      addr = *((struct sockaddr_in *) &ifr.ifr_addr);
 
      return addr.sin_addr.s_addr;
+}
+
+// generate kcp connv through host name.
+// since host name should be same in both side, then we
+// can generate conn id through that.
+int kcpudp_generate_conn_id_by_host(char *host)
+{
+    int i = 0;
+    unsigned int connv = 0;
+    unsigned char c;
+    do {
+        c = (unsigned char)host[i];
+        connv += c;
+    } while(c != 0);
+
+    return connv;
 }
 
 /* 
@@ -214,6 +233,92 @@ int udp_session(struct vtun_host *host)
      host->rmt_fd = s;	
 
      vtun_syslog(LOG_INFO,"UDP connection initialized");
+     return s;
+}
+
+/* 
+ * Establish UDP session with host connected to fd(socket).
+ * Returns connected UDP socket or -1 on error.
+ */
+int kcpoudp_session(struct vtun_host *host) 
+{
+     struct sockaddr_in saddr; 
+     short port;
+     int s,opt;
+     extern int is_rmt_fd_connected;
+
+     if( (s=socket(AF_INET,SOCK_DGRAM,0))== -1 ){
+        vtun_syslog(LOG_ERR,"Can't create socket");
+        return -1;
+     }
+
+     opt=1;
+     setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)); 
+    
+     /* Set local address and port */
+     local_addr(&saddr, host, 1);
+     if( bind(s,(struct sockaddr *)&saddr,sizeof(saddr)) ){
+        vtun_syslog(LOG_ERR,"Can't bind to the socket");
+        return -1;
+     }
+
+     opt = sizeof(saddr);
+     if( getsockname(s,(struct sockaddr *)&saddr,&opt) ){
+        vtun_syslog(LOG_ERR,"Can't get socket name");
+        return -1;
+     }
+
+     /* Write port of the new UDP socket */
+     port = saddr.sin_port;
+     if( write_n(host->rmt_fd,(char *)&port,sizeof(short)) < 0 ){
+        vtun_syslog(LOG_ERR,"Can't write port number");
+        return -1;
+     }
+     host->sopt.lport = htons(port);
+
+     /* Read port of the other's end UDP socket */
+     if( readn_t(host->rmt_fd,&port,sizeof(short),host->timeout) < 0 ){
+        vtun_syslog(LOG_ERR,"Can't read port number %s", strerror(errno));
+        return -1;
+     }
+
+     opt = sizeof(saddr);
+     if( getpeername(host->rmt_fd,(struct sockaddr *)&saddr,&opt) ){
+        vtun_syslog(LOG_ERR,"Can't get peer name");
+        return -1;
+     }
+
+     saddr.sin_port = port;
+
+     /* if the config says to delay the UDP connection, we wait for an
+	incoming packet and then force a connection back.  We need to
+	put this here because we need to keep that incoming triggering
+	packet and pass it back up the chain. */
+
+     if (VTUN_USE_NAT_HACK(host))
+     	is_rmt_fd_connected=0;
+	else {
+     if( connect(s,(struct sockaddr *)&saddr,sizeof(saddr)) ){
+        vtun_syslog(LOG_ERR,"Can't connect socket");
+        return -1;
+     }
+     is_rmt_fd_connected=1;
+	}
+     
+     host->sopt.rport = htons(port);
+
+     /* Close TCP socket and replace with UDP socket */	
+     close(host->rmt_fd); 
+     host->rmt_fd = s;	
+
+     // KCP KLUDGE HERE.
+     {
+         host->kcp = ikcp_create(kcpudp_generate_conn_id_by_host(host->host), (void *)host);
+         host->kcp->output = kcpoudp_output_cb;
+     }
+     // KCP...
+
+     vtun_syslog(LOG_INFO,"KCPUDP connection initialized");
      return s;
 }
 

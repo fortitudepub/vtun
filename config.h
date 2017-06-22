@@ -61,17 +61,17 @@
 #define HAVE_LZO 1
 
 /* Define if you have OpenSSL */
-/* #undef HAVE_SSL */
+#define HAVE_SSL 1
 
-/* #undef HAVE_SSL_BLOWFISH */
+#define HAVE_SSL_BLOWFISH 1
 
-/* #undef HAVE_SSL_AES */
+#define HAVE_SSL_AES 1
 
-/* #undef HAVE_SSL_EVP */
+#define HAVE_SSL_EVP 1
 
-/* #undef HAVE_SHAPER */
+#define HAVE_SHAPER 1
 
 #define ENABLE_NAT_HACK 1
 
 /* Release version and date */
-#define VTUN_VER "3.X 05/17/2017"
+#define VTUN_VER "3.X 06/22/2017"

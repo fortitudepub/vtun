@@ -137,9 +137,13 @@ char *bf2cf(struct vtun_host *host)
 	case VTUN_UDP:
 	   *(ptr++) = 'U';
 	   break;
-     }
 
-     switch( host->flags & VTUN_TYPE_MASK ){
+	case VTUN_KCPOUDP:
+	   *(ptr++) = 'P';
+	   break;
+   }
+
+    switch( host->flags & VTUN_TYPE_MASK ){
 	case VTUN_TTY:
 	   *(ptr++) = 't'; 	
 	   break;
@@ -216,6 +220,9 @@ int cf2bf(char *str, struct vtun_host *host)
 	     case 'T':
 		host->flags &= ~VTUN_PROT_MASK;
 		host->flags |= VTUN_TCP;
+         case 'P':
+		host->flags &= ~VTUN_PROT_MASK;
+		host->flags |= VTUN_KCPOUDP;
 		break;
 	     case 'K':
 		host->flags |= VTUN_KEEP_ALIVE;

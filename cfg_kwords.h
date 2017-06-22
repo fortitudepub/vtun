@@ -59,6 +59,7 @@ struct kword cfg_keyword[] = {
    { "route", 	 K_ROUTE }, 
    { "ip", 	 K_IPROUTE }, 
    { "keepalive",K_KALIVE }, 
+   { "",K_KALIVE }, 
    { "stat",	 K_STAT }, 
    { "syslog",   K_SYSLOG },
    { NULL , 0 }
@@ -77,6 +78,7 @@ struct kword cfg_param[] = {
    { "tun",	 VTUN_TUN }, 
    { "tcp",      VTUN_TCP }, 
    { "udp",      VTUN_UDP }, 
+   { "kcpoudp",      VTUN_KCPOUDP },
    { "client",   VTUN_NAT_HACK_CLIENT },
    { "server",   VTUN_NAT_HACK_SERVER },   
    { "lzo",      VTUN_LZO }, 

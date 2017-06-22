@@ -18,8 +18,9 @@
 #   $Id: Makefile.in,v 1.11.2.6 2012/07/09 04:55:38 mtbishop Exp $
 #  
 CC = gcc
-CFLAGS = -g -O2  -I/usr/include/lzo
-LDFLAGS =   -lz -llzo2
+CFLAGS = -g -O2  -I/usr/include/lzo -I/usr/include/openssl -I/usr/include/openssl -I/usr/include/openssl -I/usr/include/openssl
+# Add math.
+LDFLAGS =   -lz -llzo2 -lcrypto -lm
 
 YACC = bison -y
 YACCFLAGS = -d
@@ -50,7 +51,7 @@ DEFS = -DVTUN_CONFIG_FILE=\"$(CFG_FILE)\" -DVTUN_PID_FILE=\"$(PID_FILE)\" \
 OBJS = main.o cfg_file.tab.o cfg_file.lex.o server.o client.o lib.o \
        llist.o auth.o tunnel.o lock.o netlib.o  \
        tun_dev.o tap_dev.o pty_dev.o pipe_dev.o \
-       tcp_proto.o udp_proto.o \
+       tcp_proto.o udp_proto.o ikcp.o kcpoudp_proto.o\
        linkfd.o lfd_shaper.o lfd_zlib.o lfd_lzo.o lfd_encrypt.o lfd_legacy_encrypt.o
 
 CONFIGURE_FILES = Makefile config.status config.cache config.h config.log 
