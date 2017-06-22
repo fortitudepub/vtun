@@ -150,7 +150,7 @@ int kcpudp_generate_conn_id_by_host(char *host)
     unsigned int connv = 0;
     unsigned char c;
     do {
-        c = (unsigned char)host[i];
+        c = (unsigned char)host[i++];
         connv += c;
     } while(c != 0);
 
