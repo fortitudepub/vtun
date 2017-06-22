@@ -244,12 +244,11 @@ int lfd_linker_kcp(void)
         return 0; 
      }
 
-    // No need, we are always using public IP to reach nodes.
-    /*  /\* Delay sending of first UDP packet over broken NAT routers */
-	/* because we will probably be disconnected.  Wait for the remote */
-	/* end to send us something first, and use that connection. *\/ */
-    /*  if (!VTUN_USE_NAT_HACK(lfd_host)) */
-    /*  kcpoudp_write(fd1, buf, VTUN_ECHO_REQ, lfd_host); */
+     /* Delay sending of first UDP packet over broken NAT routers
+	because we will probably be disconnected.  Wait for the remote
+	end to send us something first, and use that connection. */
+    if (!VTUN_USE_NAT_HACK(lfd_host))
+     kcpoudp_write(fd1, buf, VTUN_ECHO_REQ, lfd_host);
 
      maxfd = (fd1 > fd2 ? fd1 : fd2) + 1;
 
