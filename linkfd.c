@@ -516,7 +516,7 @@ int lfd_linker(void)
      return 0;
 }
 
-void *kcp_tick(void *arg) {
+void kcp_tick(void *arg) {
     struct vtun_host *host = arg;
 
      // drive kcp works.

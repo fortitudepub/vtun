@@ -178,4 +178,5 @@ int kcpoudp_read(int fd, char *buf, int len, struct vtun_host *host)
 
 int kcpoudp_update(struct vtun_host *host, unsigned int now_in_ms) {
     ikcp_update(host->kcp, now_in_ms);
+    return 0;
 }
