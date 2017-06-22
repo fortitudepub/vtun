@@ -63,7 +63,7 @@ struct vtun_host *lfd_host;
 struct lfd_mod *lfd_mod_head = NULL, *lfd_mod_tail = NULL;
 
 //
-bool kcp_thread_created = false;
+int kcp_thread_created = 0;
 pthread_t kcp_thread = 0;
 
 /* Modules functions*/
