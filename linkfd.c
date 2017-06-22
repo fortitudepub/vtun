@@ -64,7 +64,7 @@ struct lfd_mod *lfd_mod_head = NULL, *lfd_mod_tail = NULL;
 
 //
 int kcp_thread_created = 0;
-pthread_t kcp_thread = 0;
+pthread_t kcp_thread;
 
 /* Modules functions*/
 
@@ -521,7 +521,7 @@ void *kcp_tick(void *arg) {
 
      // drive kcp works.
     while (1) {
-     if (lfd_host->kcp != 0) {
+     if (host->kcp != 0) {
          long ms;
          time_t s;
          struct timespec spec;
@@ -529,7 +529,7 @@ void *kcp_tick(void *arg) {
          s = spec.tv_sec;
          ms = round(spec.tv_nsec/1000000);
          // use current ms to drive the kcp.
-         kcpoudp_update(lfd_host, s*1000+ms);
+         kcpoudp_update(host, s*1000+ms);
      } else {
          vtun_syslog(LOG_ERR, "kcp_tick thread created with kcp null, exiting...");
          return;
@@ -588,7 +588,7 @@ int linkfd(struct vtun_host *host)
          // precision in second.
          int code;
          kcp_thread_created = 0;
-         code = pthread_create(&kcp_thread, 0, &kcp_tick, (void *)host);
+         code = pthread_create(&kcp_thread, 0, kcp_tick, (void *)host);
          kcp_thread_created = 1;
      }
      else if( host->flags & (VTUN_STAT|VTUN_KEEP_ALIVE) ){
