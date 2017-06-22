@@ -63,7 +63,8 @@ struct vtun_host *lfd_host;
 struct lfd_mod *lfd_mod_head = NULL, *lfd_mod_tail = NULL;
 
 //
-pthread_t *kcp_thread = 0;
+bool kcp_thread_created = false;
+pthread_t kcp_thread = 0;
 
 /* Modules functions*/
 
@@ -586,8 +587,9 @@ int linkfd(struct vtun_host *host)
          // VTUN KCPOUDP does not use SIGALRM because it can only provide
          // precision in second.
          int code;
-         kcp_thread = 0;
-         code = pthread_create(kcp_thread, 0, kcp_tick, (void *)host);
+         kcp_thread_created = 0;
+         code = pthread_create(&kcp_thread, 0, &kcp_tick, (void *)host);
+         kcp_thread_created = 1;
      }
      else if( host->flags & (VTUN_STAT|VTUN_KEEP_ALIVE) ){
         sa.sa_handler=sig_alarm;
@@ -626,7 +628,7 @@ int linkfd(struct vtun_host *host)
      lfd_free_mod();
 
      // close thread.
-     if (kcp_thread != 0) {
+     if (kcp_thread_created != 0) {
          pthread_cancel(kcp_thread);
      }
      sigaction(SIGTERM,&sa_oldterm,NULL);
