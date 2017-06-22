@@ -20,7 +20,7 @@
 CC = gcc
 CFLAGS = -g -O2  -I/usr/include/lzo -I/usr/include/openssl -I/usr/include/openssl -I/usr/include/openssl -I/usr/include/openssl
 # Add math.
-LDFLAGS =   -lz -llzo2 -lcrypto -lm
+LDFLAGS =   -lz -llzo2 -lcrypto -lm -lpthread
 
 YACC = bison -y
 YACCFLAGS = -d

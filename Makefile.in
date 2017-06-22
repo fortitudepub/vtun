@@ -20,7 +20,7 @@
 CC = @CC@
 CFLAGS = @CFLAGS@ @CPPFLAGS@
 # Add math.
-LDFLAGS = @LDFLAGS@ @LIBS@ -lm
+LDFLAGS = @LDFLAGS@ @LIBS@ -lm -lpthread
 
 YACC = @YACC@
 YACCFLAGS = -d

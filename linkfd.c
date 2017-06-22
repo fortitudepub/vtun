@@ -33,6 +33,7 @@
 #include <syslog.h>
 #include <time.h>
 #include <math.h>
+#include <pthread.h>
 
 #ifdef HAVE_SYS_RESOURCE_H
 #include <sys/resource.h>
@@ -60,6 +61,9 @@ int send_a_packet = 0;
 struct vtun_host *lfd_host;
 
 struct lfd_mod *lfd_mod_head = NULL, *lfd_mod_tail = NULL;
+
+//
+pthread_t *kcp_thread = 0;
 
 /* Modules functions*/
 
@@ -202,18 +206,6 @@ void sig_alarm(int sig)
 	stat_timer = VTUN_STAT_IVAL;
      }
 
-     // drive kcp works.
-     if (lfd_host->kcp != 0) {
-         long ms;
-         time_t s;
-         struct timespec spec;
-         clock_gettime(CLOCK_REALTIME, &spec);
-         s = spec.tv_sec;
-         ms = round(spec.tv_nsec/1000000);
-         // use current ms to drive the kcp.
-         kcpoudp_update(lfd_host, s*1000+ms);
-     }
-
      if ( ka_timer*stat_timer ){
        alarm( (ka_timer < stat_timer) ? ka_timer : stat_timer );
      } else {
@@ -262,7 +254,9 @@ int lfd_linker_kcp(void)
 	FD_SET(fd2, &fdset);
 
  	tv.tv_sec  = 0;
-	tv.tv_usec = lfd_host->ka_interval * 1000; // ka_interval is redefined as millis
+    // ka_interval is redefined as millis, this may cause cpu a little
+    // high, but we accept it since the server is not so load. 
+	tv.tv_usec = lfd_host->ka_interval * 1000;
 
 	if( (len = select(maxfd, &fdset, NULL, NULL, &tv)) < 0 ){
 	   if( errno != EAGAIN && errno != EINTR )
@@ -521,6 +515,34 @@ int lfd_linker(void)
      return 0;
 }
 
+void *kcp_tick(void *arg) {
+    struct vtun_host *host = arg;
+
+     // drive kcp works.
+    while (1) {
+     if (lfd_host->kcp != 0) {
+         long ms;
+         time_t s;
+         struct timespec spec;
+         clock_gettime(CLOCK_REALTIME, &spec);
+         s = spec.tv_sec;
+         ms = round(spec.tv_nsec/1000000);
+         // use current ms to drive the kcp.
+         kcpoudp_update(lfd_host, s*1000+ms);
+     } else {
+         vtun_syslog(LOG_ERR, "kcp_tick thread created with kcp null, exiting...");
+         return;
+     }
+
+     if (host->ka_interval <=0 ) {
+         vtun_syslog(LOG_ERR, "kcp_tick thread created with invalid ka interval, exiting...");
+         return;
+     }
+
+     // sleep to next round.
+     usleep(host->ka_interval * 1000); // ka in ms.
+    }
+}
 /* Link remote and local file descriptors */ 
 int linkfd(struct vtun_host *host)
 {
@@ -560,7 +582,14 @@ int linkfd(struct vtun_host *host)
      sigaction(SIGHUP,&sa,&sa_oldhup);
 
      /* Initialize keep-alive timer */
-     if( host->flags & (VTUN_STAT|VTUN_KEEP_ALIVE) ){
+     if (host->flags & VTUN_KCPOUDP) {
+         // VTUN KCPOUDP does not use SIGALRM because it can only provide
+         // precision in second.
+         int code;
+         kcp_thread = 0;
+         code = pthread_create(kcp_thread, 0, kcp_tick, (void *)host);
+     }
+     else if( host->flags & (VTUN_STAT|VTUN_KEEP_ALIVE) ){
         sa.sa_handler=sig_alarm;
         sigaction(SIGALRM,&sa,NULL);
 
@@ -595,7 +624,11 @@ int linkfd(struct vtun_host *host)
      }
 
      lfd_free_mod();
-     
+
+     // close thread.
+     if (kcp_thread != 0) {
+         pthread_cancel(kcp_thread);
+     }
      sigaction(SIGTERM,&sa_oldterm,NULL);
      sigaction(SIGINT,&sa_oldint,NULL);
      sigaction(SIGHUP,&sa_oldhup,NULL);

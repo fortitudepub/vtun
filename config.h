@@ -74,4 +74,4 @@
 #define ENABLE_NAT_HACK 1
 
 /* Release version and date */
-#define VTUN_VER "3.X 06/22/2017"
+#define VTUN_VER "3.X 06/23/2017"

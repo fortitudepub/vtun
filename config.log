@@ -748,7 +748,7 @@ configure:5131: $? = 0
 configure:5201: result: none required
 configure:5209: checking for library containing setproctitle
 configure:5239: gcc -o conftest -g -O2   conftest.c  >&5
-/tmp/ccF2sCxS.o: In function `main':
+/tmp/ccmmLSDj.o: In function `main':
 /home/fortitude/raydo/vpn/vtun-3.0.3/conftest.c:40: undefined reference to `setproctitle'
 collect2: error: ld returned 1 exit status
 configure:5245: $? = 1
@@ -797,7 +797,7 @@ configure: failed program was:
 |   return 0;
 | }
 configure:5294: gcc -o conftest -g -O2   conftest.c -lutil   >&5
-/tmp/ccBuJQET.o: In function `main':
+/tmp/ccsrdsfm.o: In function `main':
 /home/fortitude/raydo/vpn/vtun-3.0.3/conftest.c:40: undefined reference to `setproctitle'
 collect2: error: ld returned 1 exit status
 configure:5300: $? = 1
@@ -1034,7 +1034,6 @@ on fortitude-ThinkPad-W530
 
 config.status:665: creating Makefile
 config.status:769: creating config.h
-config.status:937: config.h is unchanged
 
 ## ---------------- ##
 ## Cache variables. ##
@@ -1221,7 +1220,7 @@ target_vendor='unknown'
 #define PACKAGE_TARNAME ""
 #define PACKAGE_VERSION ""
 #define STDC_HEADERS 1
-#define VTUN_VER "3.X 06/22/2017"
+#define VTUN_VER "3.X 06/23/2017"
 #define YYTEXT_POINTER 1
 
 configure: exit 0
