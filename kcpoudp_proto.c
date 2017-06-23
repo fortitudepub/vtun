@@ -38,6 +38,8 @@
 #include <sys/uio.h>
 #include <errno.h>
 
+#include "pthread.h"
+
 #ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
 #endif
@@ -91,11 +93,14 @@ int kcpoudp_write(char *buf, int len, struct vtun_host *host)
      *((unsigned short *)ptr) = htons(len);
      len  = (len & VTUN_FSIZE_MASK) + sizeof(short);
 
+     pthread_mutex_lock(&host->kcp_lock);
      if( (ikcp_send(host->kcp, ptr, len)) < 0 ) {
          // Do no propogate ikcp error.
+         pthread_mutext_unlock(&host->kcp_lock);
 	      return 0;
      }
 
+     pthread_mutex_unlock(&host->kcp_lock);
      return 0;
 }
 
@@ -135,7 +140,9 @@ int kcpoudp_fd_read(int fd, struct vtun_host *host)
         }
 
         // drive the packet to ikcp.
+        pthread_mutex_lock(&host->kcp_lock);
         ikcp_input(host->kcp, tmp_buf, rlen);
+        pthread_mutex_unlock(&host->kcp_lock);
         break;
 	}
 
@@ -152,12 +159,15 @@ int kcpoudp_read(char *buf, struct vtun_host *host)
      // seems kcp is datagram protocol, emulation of stream protocol
      // is not enabled (see kcp->stream.).
 
+     pthread_mutex_lock(&host->kcp_lock);
      // read packet header and read length.
      if ((rlen = ikcp_recv(host->kcp, tmp_buf, packet_size)) < 0) {
          // we should convert it to harmless value to let linkerfd
          // continue to operate.
+         pthread_mutex_unlock(&host->kcp_lock);
          return VTUN_ECHO_REP;
      }
+     pthread_mutex_unlock(&host->kcp_lock);
 
      // extract frame length from encoded length.
      hdr = ntohs(*(unsigned short *)(&tmp_buf[0]));
@@ -174,6 +184,8 @@ int kcpoudp_read(char *buf, struct vtun_host *host)
 }
 
 int kcpoudp_update(struct vtun_host *host, unsigned int now_in_ms) {
+    pthread_mutex_unlock(&host->kcp_lock);
     ikcp_update(host->kcp, now_in_ms);
+    pthread_mutex_unlock(&host->kcp_lock);
     return 0;
 }

@@ -258,6 +258,7 @@ int tunnel(struct vtun_host *host)
         // when exist, release kcp.
         if (host->kcp != 0) {
             ikcp_release(host->kcp);
+            pthread_mutex_destroy(&host->kcp_lock);
         }
      }
 

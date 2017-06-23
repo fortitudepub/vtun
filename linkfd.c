@@ -423,9 +423,23 @@ int lfd_linker(void)
          pthread_create(&kcp_rx_thread, 0, kcp_rx, (void *)lfd_host);
          kcp_rx_thread_created = 1;
 
-         pthread_join(kcp_tx_thread, 0);
-         pthread_join(kcp_rx_thread, 0);
+         while (1) {
+             int ret;
+             ret = pthread_tryjoin_np(kcp_tx_thread, 0);
+             if (ret == 0) {
+                 vtun_syslog(LOG_INFO,"kcp tx thread exits, close rx thread too...");
+                 pthread_cancel(kcp_rx_thread);
+                 break;
+             }
+             ret = pthread_tryjoin_np(kcp_rx_thread, 0);
+             if (ret == 0) {
+                 vtun_syslog(LOG_INFO,"kcp rx thread exits, close tx thread too...");
+                 pthread_cancel(kcp_tx_thread);
+                 break;
+             }
 
+             usleep(500*1000); // check 0.5 s.
+         }
          // join finished, all thread exits...
          return -1;
      }
@@ -434,7 +448,7 @@ int lfd_linker(void)
 	vtun_syslog(LOG_ERR,"Can't allocate buffer for the linker"); 
         return 0;
      }
-	
+
      /* Delay sending of first UDP packet over broken NAT routers
 	because we will probably be disconnected.  Wait for the remote
 	end to send us something first, and use that connection. */
@@ -617,7 +631,7 @@ int linkfd(struct vtun_host *host)
        } else {
 	 lfd_add_mod(&lfd_encrypt);
        }
-     
+
      if(host->flags & VTUN_SHAPE)
 	lfd_add_mod(&lfd_shaper);
 

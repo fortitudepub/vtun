@@ -25,6 +25,7 @@
 
 #include "llist.h"
 #include "ikcp.h"
+#include "pthread.h"
 
 /* Default VTUN port */
 #define VTUN_PORT 5000
@@ -119,6 +120,7 @@ struct vtun_host {
 
     // KCP KLUDGE.
     ikcpcb *kcp;
+    pthread_mutex_t kcp_lock;
 };
 
 extern llist host_list;

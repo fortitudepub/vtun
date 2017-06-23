@@ -319,6 +319,8 @@ int kcpoudp_session(struct vtun_host *host)
          host->kcp->rx_minrto = 10; // detect drop asap.
          ikcp_wndsize(host->kcp, 256, 512); // bigger...
          host->kcp->output = kcpoudp_output_cb;
+         // init a mutex.
+         pthread_mutex_init(&(host->kcp_lock), 0);
      }
      // KCP...
 
