@@ -111,7 +111,7 @@ int kcpoudp_fd_read(int fd, struct vtun_host *host)
      /* Late connect (NAT hack enabled) */
      if (!is_rmt_fd_connected) {
           while( 1 ){
-               if( (rlen = recvfrom(fd,buf,2,MSG_PEEK,(struct sockaddr *)&from,&fromlen)) < 0 ){ 
+               if( (rlen = recvfrom(fd,tmp_buf,2,MSG_PEEK,(struct sockaddr *)&from,&fromlen)) < 0 ){ 
                     if( errno == EAGAIN || errno == EINTR ) continue;
                     else return rlen;
                }
