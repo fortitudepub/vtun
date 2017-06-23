@@ -250,11 +250,14 @@ void kcp_tx(void *arg) {
         return;
     }
 
+    // reserver bits for encoding.
+    buf = buf + sizeof(short);
+
     // Init ping  ..
     kcpoudp_write(buf, VTUN_ECHO_REQ, lfd_host);
 
     linker_term = 0;
-    while( !linker_term ){
+   while( !linker_term ){
         errno = 0;
 
         // switch to noblocking mode.
