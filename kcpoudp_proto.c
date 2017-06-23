@@ -149,7 +149,35 @@ int kcpoudp_fd_read(int fd, struct vtun_host *host)
      return 0;
 }
 
-int kcpoudp_read(char *buf, struct vtun_host *host)
+// kcp->stream == 0, default mode.
+int kcpoudp_read(char *buf, struct vtun_host *host) {
+     char tmp_buf[65535];
+     int rlen;
+     unsigned short hdr, flen;
+
+     pthread_mutex_lock(&host->kcp_lock);
+     if ((rlen = ikcp_recv(host->kcp, tmp_buf, packet_size)) < 0) {
+         // we should convert it to harmless value to let linkerfd
+         // continue to operate.
+         pthread_mutex_unlock(&host->kcp_lock);
+         return VTUN_ECHO_REP;
+     }
+     // extract frame length from encoded length.
+     hdr = ntohs(*(unsigned short *)(&tmp_buf[0]));
+     flen = hdr & VTUN_FSIZE_MASK;
+     if( rlen < 2 || (rlen-2) != flen ) {
+         pthread_mutex_unlock(&host->kcp_lock);
+         return VTUN_BAD_FRAME;
+     }
+
+     // skip hdr bit and copy FULL data FRAME...
+     memcpy(buf, ((char *)&tmp_buf) + 2, flen);
+     pthread_mutex_unlock(&host->kcp_lock);
+     return hdr;
+}
+
+// kcp->stream == 1, default is 0.
+int kcpoudp_read_stream(char *buf, struct vtun_host *host)
 {
      static unsigned int unread_bytes = 0;
      static char static_buf[65535];
