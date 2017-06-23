@@ -148,8 +148,8 @@ int kcpoudp_read(int fd, char *buf, struct vtun_host *host)
          return VTUN_ECHO_REP;
      }
 
-     // Update the status bits which will be used in next calls.
-     hdr = ntohs(tmp_buf[0]);
+     // extract frame length from encoded length.
+     hdr = ntohs(*(unsigned short *)(&tmp_buf[0]));
      flen = hdr & VTUN_FSIZE_MASK;
 
      if( rlen < 2 || (rlen-2) != flen ) {
