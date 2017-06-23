@@ -287,8 +287,10 @@ int lfd_linker_kcp(void)
 	   lfd_host->stat.byte_out += tmplen; 
 	   if( (tmplen=lfd_run_down(tmplen,buf,&out)) == -1 )
 	      break;
-	   if( tmplen && kcpoudp_write(fd1, out, tmplen, lfd_host) < 0 )
-	      break;
+	   if( tmplen && kcpoudp_write(fd1, out, tmplen, lfd_host) < 0 ) {
+           vtun_syslog(LOG_ERR,"write error, %d", __LINE__);
+           break;
+       }
 	   lfd_host->stat.comp_out += tmplen; 
         }
 
@@ -296,8 +298,10 @@ int lfd_linker_kcp(void)
          * the local device (fd2) */
 	if( FD_ISSET(fd1, &fdset) && lfd_check_up() ){
 	   idle = 0;  ka_need_verify = 0;
-	   if( (len=kcpoudp_read(fd1, buf, lfd_host)) <= 0 )
-	      break;
+	   if( (len=kcpoudp_read(fd1, buf, lfd_host)) <= 0 ) {
+           vtun_syslog(LOG_ERR,"read error, %d", __LINE__);
+           break;
+       }
 
 	   /* Handle frame flags */
 	   fl = len & ~VTUN_FSIZE_MASK;
@@ -309,8 +313,10 @@ int lfd_linker_kcp(void)
 	      }
 	      if( fl==VTUN_ECHO_REQ ){
 		 /* Send ECHO reply */
-              if( kcpoudp_write(fd1, buf, VTUN_ECHO_REP, lfd_host) < 0 )
-		    break;
+              if( kcpoudp_write(fd1, buf, VTUN_ECHO_REP, lfd_host) < 0 ) {
+                  vtun_syslog(LOG_ERR,"write error, %d", __LINE__);
+                  break;
+              }
 		 continue;
 	      }
    	      if( fl==VTUN_ECHO_REP ){
@@ -349,8 +355,10 @@ int lfd_linker_kcp(void)
 	   lfd_host->stat.byte_out += len; 
 	   if( (len=lfd_run_down(len,buf,&out)) == -1 )
 	      break;
-	   if( len && kcpoudp_write(fd1, out, len, lfd_host) < 0 )
-	      break;
+	   if( len && kcpoudp_write(fd1, out, len, lfd_host) < 0 ) {
+           vtun_syslog(LOG_ERR,"write error, %d", __LINE__);
+           break;
+       }
 	   lfd_host->stat.comp_out += len; 
 	}
      }
