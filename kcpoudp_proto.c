@@ -78,7 +78,7 @@ int kcpoudp_output_cb(const char *buf, int len, ikcpcb *kcp, void *user)
 }
 
 /* Functions to read/write UDP frames. */
-int kcpoudp_write(int fd, char *buf, int len, struct vtun_host *host)
+int kcpoudp_write(char *buf, int len, struct vtun_host *host)
 {
      register char *ptr;
      register int wlen;

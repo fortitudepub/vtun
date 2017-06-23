@@ -63,8 +63,16 @@ struct vtun_host *lfd_host;
 struct lfd_mod *lfd_mod_head = NULL, *lfd_mod_tail = NULL;
 
 //
-int kcp_thread_created = 0;
-pthread_t kcp_thread;
+int kcp_tick_thread_created = 0;
+pthread_t kcp_tick_thread;
+
+// from kcp to tun.
+int kcp_rx_thread_created = 0;
+pthread_t kcp_rx_thread;
+
+// from tun to kcp.
+int kcp_tx_thread_created = 0;
+pthread_t kcp_tx_thread;
 
 /* Modules functions*/
 
@@ -221,173 +229,186 @@ static void sig_usr1(int sig)
      lfd_host->stat.comp_in = lfd_host->stat.comp_out = 0; 
 }
 
-// KCP KLUDGE.
-int lfd_linker_kcp(void)
-{
-     int fd1 = lfd_host->rmt_fd;
-     int fd2 = lfd_host->loc_fd; 
-     register int len, fl;
-     struct timeval tv;
-     char *buf, *out;
-     fd_set fdset;
-     int maxfd, idle = 0, tmplen;
+void kcp_tx(void *arg) {
+    struct vtun_host *lfd_host = arg;
 
-     if( !(buf = lfd_alloc(VTUN_FRAME_SIZE + VTUN_FRAME_OVERHEAD)) ){
-	vtun_syslog(LOG_ERR,"Can't allocate buffer for the linker"); 
-        return 0; 
-     }
+    // drive kcp works.
+    while (1) {
+        int fd2 = lfd_host->loc_fd; 
+        register int len, fl;
+        struct timeval tv;
+        char *buf, *out;
+        fd_set fdset;
+        int maxfd, idle = 0, tmplen;
 
-     /* Delay sending of first UDP packet over broken NAT routers
-	because we will probably be disconnected.  Wait for the remote
-	end to send us something first, and use that connection. */
-    if (!VTUN_USE_NAT_HACK(lfd_host))
-     kcpoudp_write(fd1, buf, VTUN_ECHO_REQ, lfd_host);
-
-     maxfd = (fd1 > fd2 ? fd1 : fd2) + 1;
-
-     linker_term = 0;
-     while( !linker_term ){
-	errno = 0;
-
-        /* Wait for data */
-        FD_ZERO(&fdset);
-	FD_SET(fd1, &fdset);
-	FD_SET(fd2, &fdset);
-
- 	tv.tv_sec  = 0;
-    // ka_interval is redefined as millis, this may cause cpu a little
-    // high, but we accept it since the server is not so load.
-    // And this also make this process in a busy poll mode (like DPDK,
-    // we are network forwarder, we have to burn cpu otherwise it's
-    // wasted...)
-	tv.tv_usec = lfd_host->ka_interval * 1000;
-
-	if( (len = select(maxfd, &fdset, NULL, NULL, &tv)) < 0 ){
-	   if( errno != EAGAIN && errno != EINTR )
-	      break;
-	   else {
-           // should not continue;, need give a chance for kcp to recv.
-       }
-	}
-
-	if( ka_need_verify ){
-	  if( idle > lfd_host->ka_maxfail ){
-	    vtun_syslog(LOG_INFO,"Session %s network timeout", lfd_host->host);
-	    break;
-	  }
-	  if (idle++ > 0) {  /* No input frames, check connection with ECHO */
-          if( kcpoudp_write(fd1, buf, VTUN_ECHO_REQ, lfd_host) < 0 ){
-	      vtun_syslog(LOG_ERR,"Failed to send ECHO_REQ");
-	      break;
-	    }
-	  }
-	  ka_need_verify = 0;
-	}
-
-	if (send_a_packet)
-        {
-           send_a_packet = 0;
-           tmplen = 1;
-	   lfd_host->stat.byte_out += tmplen; 
-	   if( (tmplen=lfd_run_down(tmplen,buf,&out)) == -1 )
-	      break;
-	   if( tmplen && kcpoudp_write(fd1, out, tmplen, lfd_host) < 0 ) {
-           vtun_syslog(LOG_ERR,"write error, %d", __LINE__);
-           break;
-       }
-	   lfd_host->stat.comp_out += tmplen; 
+        if( !(buf = lfd_alloc(VTUN_FRAME_SIZE + VTUN_FRAME_OVERHEAD)) ){
+            vtun_syslog(LOG_ERR,"Can't allocate buffer for the linker"); 
+            return; 
         }
 
-	/* Read frames from network(fd1), put to kcp input */
-	if( FD_ISSET(fd1, &fdset) && lfd_check_up() ){
-	   if( (len=kcpoudp_fd_read(fd1, lfd_host)) < 0 ) {
-           vtun_syslog(LOG_ERR,"read error, %d", __LINE__);
-           break;
-       }
+        linker_term = 0;
+        while( !linker_term ){
+            errno = 0;
+
+            /* Wait for data */
+            maxfd = 1;
+            FD_ZERO(&fdset);
+            FD_SET(fd2, &fdset); // tun dev fd.
+
+            tv.tv_sec  = 0;
+            tv.tv_usec = lfd_host->ka_interval * 1000; // use ka as poll time.
+
+            if( (len = select(maxfd, &fdset, NULL, NULL, &tv)) < 0 ){
+                if( errno != EAGAIN && errno != EINTR )
+                break;
+                else {
+                    // should not continue;, need give a chance for kcp to recv.
+                }
+            }
+
+            /* Read data from the local device(fd2), tx to kcp */
+            if( FD_ISSET(fd2, &fdset) && lfd_check_down() ) {
+                if( (len = dev_read(fd2, buf, VTUN_FRAME_SIZE)) < 0 ){
+                    if( errno != EAGAIN && errno != EINTR )
+                    break;
+                    else
+                    continue;
+                }
+                if( !len ) break;
+
+                lfd_host->stat.byte_out += len;
+                if( (len=lfd_run_down(len,buf,&out)) == -1 )
+                break;
+                if( len && kcpoudp_write(out, len, lfd_host) < 0 ) {
+                    vtun_syslog(LOG_ERR,"write error, %d", __LINE__);
+                    break;
+                }
+                lfd_host->stat.comp_out += len;
+            }
+        }
+        if( !linker_term && errno ) {
+            vtun_syslog(LOG_INFO,"linker fd exist without received sigterm, errno: %s (%d)", strerror(errno), errno);     
+        }
+
+        if (linker_term == VTUN_SIG_TERM) {
+            lfd_host->persist = 0;
+        }
+
+        lfd_free(buf);
+    }
+}
+
+void kcp_rx(void *arg) {
+    struct vtun_host *lfd_host = arg;
+
+    // drive kcp works.
+    while (1) {
+        int fd1 = lfd_host->rmt_fd;
+        int fd2 = lfd_host->loc_fd; 
+        register int len, fl;
+        struct timeval tv;
+        char *buf, *out;
+        fd_set fdset;
+        int maxfd, idle = 0, tmplen;
+
+        if( !(buf = lfd_alloc(VTUN_FRAME_SIZE + VTUN_FRAME_OVERHEAD)) ){
+            vtun_syslog(LOG_ERR,"Can't allocate buffer for the linker"); 
+            return; 
+        }
+
+        linker_term = 0;
+        while( !linker_term ){
+            errno = 0;
+
+            /* Wait for data */
+            maxfd = 1;
+            FD_ZERO(&fdset);
+            FD_SET(fd1, &fdset);
+
+            tv.tv_sec  = 0;
+            tv.tv_usec = lfd_host->ka_interval * 1000; //used as poll time.
+
+            if( (len = select(maxfd, &fdset, NULL, NULL, &tv)) < 0 ){
+                if( errno != EAGAIN && errno != EINTR )
+                break;
+                else {
+                    // should not continue;, need give a chance for kcp to recv.
+                }
+            }
+
+            /* Read frames from network(fd1), put to kcp input */
+            if( FD_ISSET(fd1, &fdset) && lfd_check_up() ){
+                if( (len=kcpoudp_fd_read(fd1, lfd_host)) < 0 ) {
+                    vtun_syslog(LOG_ERR,"read error, %d", __LINE__);
+                    break;
+                }
+            }
+
+            /* try decode packet from kcp EACH ROUND since
+               we actually turn this main loop a busy poll mode. */
+            if(lfd_check_up() ){
+                idle = 0;  ka_need_verify = 0;
+                if( (len=kcpoudp_read(buf, lfd_host)) < 0 ) {
+                    vtun_syslog(LOG_ERR,"read error, %d", __LINE__);
+                    break;
+                }
+
+                /* Handle frame flags */
+                fl = len & ~VTUN_FSIZE_MASK;
+                len = len & VTUN_FSIZE_MASK;
+                if( fl ){
+                    if( fl==VTUN_BAD_FRAME ){
+                        vtun_syslog(LOG_ERR, "Received bad frame");
+                        // should not continue;, need give a chance for dev read.
+                    }
+                    else if( fl==VTUN_ECHO_REQ ){
+                        /* Send ECHO reply */
+                        if( kcpoudp_write(buf, VTUN_ECHO_REP, lfd_host) < 0 ) {
+                            vtun_syslog(LOG_ERR,"write error, %d", __LINE__);
+                            break;
+                        }
+                        // should not continue;, need give a chance for dev read.
+                    }
+                    else if( fl==VTUN_ECHO_REP ){
+                        /* Just ignore ECHO reply, ka_need_verify==0 already */
+                        // should not continue;, need give a chance for dev read.
+                    }
+                    else if( fl==VTUN_CONN_CLOSE ){
+                        vtun_syslog(LOG_INFO,"Connection closed by other side");
+                        // should not continue;, need give a chance for dev read.
+                    }
+                }
+
+                lfd_host->stat.comp_in += len;
+                if( (len=lfd_run_up(len,buf,&out)) == -1 )
+                break;
+                if( len && dev_write(fd2,out,len) < 0 ){
+                    if( errno != EAGAIN && errno != EINTR )
+                    break;
+                    else {
+                        // should not continue;, need give a chance for dev read.
+                    }
+                }
+                lfd_host->stat.byte_in += len;
+            }
+        }
+
+        if( !linker_term && errno ) {
+            vtun_syslog(LOG_INFO,"linker fd exist without received sigterm, errno: %s (%d)", strerror(errno), errno);     
+        }
+
+        if (linker_term == VTUN_SIG_TERM) {
+            lfd_host->persist = 0;
+        }
+
+        /* Notify other end about our close */
+        kcpoudp_write(buf, VTUN_CONN_CLOSE, lfd_host);
+        lfd_free(buf);
+
+        return;
     }
 
-    /* try decode packet from kcp EACH ROUND since
-       we actually turn this main loop a busy poll mode. */
-	if(lfd_check_up() ){
-	   idle = 0;  ka_need_verify = 0;
-	   if( (len=kcpoudp_read(buf, lfd_host)) < 0 ) {
-           vtun_syslog(LOG_ERR,"read error, %d", __LINE__);
-           break;
-       }
-
-	   /* Handle frame flags */
-	   fl = len & ~VTUN_FSIZE_MASK;
-           len = len & VTUN_FSIZE_MASK;
-	   if( fl ){
-	      if( fl==VTUN_BAD_FRAME ){
-		 vtun_syslog(LOG_ERR, "Received bad frame");
-		 // should not continue;, need give a chance for dev read.
-	      }
-	      else if( fl==VTUN_ECHO_REQ ){
-		 /* Send ECHO reply */
-              if( kcpoudp_write(fd1, buf, VTUN_ECHO_REP, lfd_host) < 0 ) {
-                  vtun_syslog(LOG_ERR,"write error, %d", __LINE__);
-                  break;
-              }
-              // should not continue;, need give a chance for dev read.
-	      }
-   	      else if( fl==VTUN_ECHO_REP ){
-              /* Just ignore ECHO reply, ka_need_verify==0 already */
-              // should not continue;, need give a chance for dev read.
-	      }
-	      else if( fl==VTUN_CONN_CLOSE ){
-	         vtun_syslog(LOG_INFO,"Connection closed by other side");
-              // should not continue;, need give a chance for dev read.
-	      }
-	   }
-
-	   lfd_host->stat.comp_in += len; 
-	   if( (len=lfd_run_up(len,buf,&out)) == -1 )
-	      break;
-	   if( len && dev_write(fd2,out,len) < 0 ){
-              if( errno != EAGAIN && errno != EINTR )
-                 break;
-              else {
-                  // should not continue;, need give a chance for dev read.
-              }
-           }
-	   lfd_host->stat.byte_in += len; 
-	}
-
-	/* Read data from the local device(fd2), encode and pass it to 
-         * the network (fd1) */
-	if( FD_ISSET(fd2, &fdset) && lfd_check_down() ){
-	   if( (len = dev_read(fd2, buf, VTUN_FRAME_SIZE)) < 0 ){
-	      if( errno != EAGAIN && errno != EINTR )
-	         break;
-	      else
-		 continue;
-	   }
-	   if( !len ) break;
-
-	   lfd_host->stat.byte_out += len;
-	   if( (len=lfd_run_down(len,buf,&out)) == -1 )
-	      break;
-	   if( len && kcpoudp_write(fd1, out, len, lfd_host) < 0 ) {
-           vtun_syslog(LOG_ERR,"write error, %d", __LINE__);
-           break;
-       }
-	   lfd_host->stat.comp_out += len;
-	}
-     }
-     if( !linker_term && errno ) {
-         vtun_syslog(LOG_INFO,"linker fd exist without received sigterm, errno: %s (%d)", strerror(errno), errno);     
-     }
-
-     if (linker_term == VTUN_SIG_TERM) {
-       lfd_host->persist = 0;
-     }
-
-     /* Notify other end about our close */
-     kcpoudp_write(fd1, buf, VTUN_CONN_CLOSE, lfd_host);
-     lfd_free(buf);
-
-     return 0;
+    return;
 }
 
 int lfd_linker(void)
@@ -401,12 +422,24 @@ int lfd_linker(void)
      int maxfd, idle = 0, tmplen;
 
      if (lfd_host->kcp != 0) {
-         return lfd_linker_kcp();
+         kcp_tx_thread_created = 0;
+         pthread_create(&kcp_tx_thread, 0, kcp_tx, (void *)lfd_host);
+         kcp_tx_thread_created = 1;
+
+         kcp_rx_thread_created = 0;
+         pthread_create(&kcp_rx_thread, 0, kcp_rx, (void *)lfd_host);
+         kcp_rx_thread_created = 1;
+
+         pthread_join(kcp_tx_thread, 0);
+         pthread_join(kcp_rx_thread, 0);
+
+         // join finished, all thread exits...
+         return -1;
      }
 
      if( !(buf = lfd_alloc(VTUN_FRAME_SIZE + VTUN_FRAME_OVERHEAD)) ){
 	vtun_syslog(LOG_ERR,"Can't allocate buffer for the linker"); 
-        return 0; 
+        return 0;
      }
 	
      /* Delay sending of first UDP packet over broken NAT routers
@@ -609,10 +642,9 @@ int linkfd(struct vtun_host *host)
      if (host->flags & VTUN_KCPOUDP) {
          // VTUN KCPOUDP does not use SIGALRM because it can only provide
          // precision in second.
-         int code;
-         kcp_thread_created = 0;
-         code = pthread_create(&kcp_thread, 0, kcp_tick, (void *)host);
-         kcp_thread_created = 1;
+         kcp_tick_thread_created = 0;
+         pthread_create(&kcp_tick_thread, 0, kcp_tick, (void *)host);
+         kcp_tick_thread_created = 1;
      }
      else if( host->flags & (VTUN_STAT|VTUN_KEEP_ALIVE) ){
         sa.sa_handler=sig_alarm;
@@ -651,8 +683,8 @@ int linkfd(struct vtun_host *host)
      lfd_free_mod();
 
      // close thread.
-     if (kcp_thread_created != 0) {
-         pthread_cancel(kcp_thread);
+     if (kcp_tick_thread_created != 0) {
+         pthread_cancel(kcp_tick_thread);
      }
      sigaction(SIGTERM,&sa_oldterm,NULL);
      sigaction(SIGINT,&sa_oldint,NULL);
