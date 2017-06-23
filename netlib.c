@@ -254,7 +254,7 @@ int kcpoudp_session(struct vtun_host *host)
 
      opt=1;
      setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)); 
-    
+
      /* Set local address and port */
      local_addr(&saddr, host, 1);
      if( bind(s,(struct sockaddr *)&saddr,sizeof(saddr)) ){
@@ -317,7 +317,8 @@ int kcpoudp_session(struct vtun_host *host)
          host->kcp = ikcp_create(kcpudp_generate_conn_id_by_host(host->host), (void *)host);
          ikcp_nodelay(host->kcp, 1, 10, 2, 1); // enable fast fast mode!!!
          host->kcp->rx_minrto = 50; // detect drop asap.
-         ikcp_wndsize(host->kcp, 2048, 10248); // bigger...
+         // refer to kcpodup_read static_buf size if you want to change that.
+         ikcp_wndsize(host->kcp, 32, 128); // rcvwnd will merge packet, 32*1400(mtu) will note exceed 64k which let us easy to packet decode...
          host->kcp->output = kcpoudp_output_cb;
          // init a mutex.
          pthread_mutex_init(&(host->kcp_lock), 0);

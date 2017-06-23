@@ -151,35 +151,118 @@ int kcpoudp_fd_read(int fd, struct vtun_host *host)
 
 int kcpoudp_read(char *buf, struct vtun_host *host)
 {
-     int packet_size = sizeof(short) + VTUN_FRAME_SIZE + VTUN_FRAME_OVERHEAD;
-     char tmp_buf[sizeof(short) + VTUN_FRAME_SIZE + VTUN_FRAME_OVERHEAD];
+     static unsigned int unread_bytes = 0;
+     static char static_buf[65535];
+     char tmp_buf[65535];
      int rlen;
-     unsigned short hdr, flen;
+     unsigned short hdr, flen, peek_size;
 
-     // seems kcp is datagram protocol, emulation of stream protocol
-     // is not enabled (see kcp->stream.).
+     // HANDLE KCP STREAM PROTOCOL, RECOVER IP PACKTS.
+     // 1. 先peek 2字节，根据peek出来的结果取出ip packet frame len，然后再去
+     //    peek，如果够则读，不够等下次
+     // 2. 够的情况下，读出的buffer可能会存在余量，下次先基于余量提取，不够
+     //    的话按1的方式处理
+     // 这样最多记录一点当前多出来的buffer，不会过多
 
      pthread_mutex_lock(&host->kcp_lock);
-     // read packet header and read length.
-     if ((rlen = ikcp_recv(host->kcp, tmp_buf, packet_size)) < 0) {
-         // we should convert it to harmless value to let linkerfd
-         // continue to operate.
-         pthread_mutex_unlock(&host->kcp_lock);
-         return VTUN_ECHO_REP;
+
+     if (unread_bytes) {
+         if (unread_bytes > 2) {
+             hdr = ntohs(*(unsigned short *)(&static_buf[0]));
+             flen = hdr & VTUN_FSIZE_MASK;
+             if (unread_bytes >= (2 + flen)) { // 残留足够一个包
+                 // 有一个完整包，拷贝到上层内存中待返回
+                 memcpy(buf, ((char *)&static_buf) + 2, flen);
+
+                 peek_size = 2 + flen;
+                 // 保存多余的包
+                 goto SAVE_UNREAD_BYTES_RETURN;
+             } else { // 残留不足一个包
+                 peek_size = (2 + flen) - unread_bytes;
+             }
+         } else {
+             // 余了1个字节，这个非常特殊，要peek一字节后再拼起来
+             // 保存之，tmp_buf将被改写
+             rlen = ikcp_recv(host->kcp, tmp_buf, -1);
+             if ((rlen != -3) && (rlen != 1)) {
+                 // 包不够长，等下一轮
+                 pthread_mutex_unlock(&host->kcp_lock);
+                 return VTUN_ECHO_REP;
+             }
+             static_buf[1] = tmp_buf[0];
+             hdr = ntohs(*(unsigned short *)(&static_buf[0]));
+             flen = hdr & VTUN_FSIZE_MASK;
+             peek_size = flen + 1;
+         }
+
+         // peek at least contain a header.
+         rlen = ikcp_recv(host->kcp, tmp_buf, -peek_size);
+         if ((rlen != -3) && (rlen != peek_size)) {
+             // 包不够长，等下一轮
+             pthread_mutex_unlock(&host->kcp_lock);
+             return VTUN_ECHO_REP;
+         }
+
+         // peek size可能会增长，所以这里用个最大可能的buffer来读取之
+         if ((rlen = ikcp_recv(host->kcp, tmp_buf, 65535)) < 0) {
+             // MUST BE WRONG, PEEK HAVE TELL US.
+             pthread_mutex_unlock(&host->kcp_lock);
+             return VTUN_ECHO_REP;
+         }
+
+         // 拼出完整包给上层
+         if (unread_bytes > 2) {
+             // 把上次残留的数据的报文用过来
+             memcpy(buf, (char*)static_buf + 2, unread_bytes - 2);
+             memcpy(buf + unread_bytes - 2, ((char *)&tmp_buf), rlen - peek_size);
+         } else { //余1个字节的特殊情况
+             memcpy(buf, ((char *)&tmp_buf) + 1, flen);
+         }
+
+         // 保存多余的包
+         goto SAVE_UNREAD_BYTES_RETURN;
+     } else { // 上次无残留
+         // peek直至存在有大于包头（2）的长度
+         if ((rlen = ikcp_recv(host->kcp, tmp_buf, -2)) != -3) {
+             // 包不够长，等下一轮
+             pthread_mutex_unlock(&host->kcp_lock);
+             return VTUN_ECHO_REP;
+         }
+
+         // 用peek调用时回填的buf解码出报文长度，然后二次peek
+         // 如果peek到则读回
+         hdr = ntohs(*(unsigned short *)(&tmp_buf[0]));
+         flen = hdr & VTUN_FSIZE_MASK;
+         // peek at least contain a header.
+         peek_size = 2 + flen;
+         rlen = ikcp_recv(host->kcp, tmp_buf, -peek_size);
+         if ((rlen != -3) && (rlen != 2+flen)) {
+             // 包不够长，等下一轮
+             pthread_mutex_unlock(&host->kcp_lock);
+             return VTUN_ECHO_REP;
+         }
+
+         // peek size可能会增长，所以这里用个最大可能的buffer来读取之
+         if ((rlen = ikcp_recv(host->kcp, tmp_buf, 65535)) < 0) {
+             // MUST BE WRONG, PEEK HAVE TELL US.
+             pthread_mutex_unlock(&host->kcp_lock);
+             return VTUN_ECHO_REP;
+         }
+
+         // 有一个完整包，拷贝到上层内存中待返回
+         memcpy(buf, ((char *)&tmp_buf) + 2, flen);
+         goto SAVE_UNREAD_BYTES_RETURN;
      }
+
+SAVE_UNREAD_BYTES_RETURN:
+     // 被peek走的数据都用掉了
+     unread_bytes = rlen - peek_size;
+     // 把未读的内存移到static_buf起始，以便下次进来读取
+     if (unread_bytes) {
+         memcpy((char *)static_buf, ((char*)tmp_buf) + peek_size, unread_bytes);
+     }
+
      pthread_mutex_unlock(&host->kcp_lock);
-
-     // extract frame length from encoded length.
-     hdr = ntohs(*(unsigned short *)(&tmp_buf[0]));
-     flen = hdr & VTUN_FSIZE_MASK;
-
-     if( rlen < 2 || (rlen-2) != flen ) {
-         return VTUN_BAD_FRAME;
-     }
-
-     // skip hdr bit and copy FULL data FRAME...
-     memcpy(buf, ((char *)&tmp_buf) + 2, flen);
-
      return hdr;
 }
 
