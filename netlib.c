@@ -319,7 +319,7 @@ int kcpoudp_session(struct vtun_host *host)
          host->kcp->rx_minrto = 10; // detect drop asap.
          host->kcp->fastresend = 1; // detect drop asap.
          // refer to kcpodup_read static_buf size if you want to change that.
-         ikcp_wndsize(host->kcp, 256, 256); // rcvwnd will merge packet, 32*1400(mtu) will note exceed 64k which let us easy to packet decode...
+         ikcp_wndsize(host->kcp, 2048, 2048); // rcvwnd will merge packet, 32*1400(mtu) will note exceed 64k which let us easy to packet decode...
          host->kcp->output = kcpoudp_output_cb;
          // init a mutex.
          pthread_mutex_init(&(host->kcp_lock), 0);
