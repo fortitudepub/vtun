@@ -175,17 +175,17 @@ int kcpoudp_read(char *buf, struct vtun_host *host) {
          pthread_mutex_unlock(&host->kcp_lock);
          return VTUN_ECHO_REP;
      }
+     pthread_mutex_unlock(&host->kcp_lock);
+
      // extract frame length from encoded length.
      hdr = ntohs(*(unsigned short *)(&tmp_buf[0]));
      flen = hdr & VTUN_FSIZE_MASK;
      if( rlen < 2 || (rlen-2) != flen ) {
-         pthread_mutex_unlock(&host->kcp_lock);
          return VTUN_BAD_FRAME;
      }
 
      // skip hdr bit and copy FULL data FRAME...
      memcpy(buf, ((char *)&tmp_buf) + 2, flen);
-     pthread_mutex_unlock(&host->kcp_lock);
      return hdr;
 }
 
