@@ -99,8 +99,9 @@ int kcpoudp_write(int fd, char *buf, int len, struct vtun_host *host)
      return 0;
 }
 
-int kcpoudp_read(int fd, char *buf, int len, struct vtun_host *host)
+int kcpoudp_read(int fd, char *buf, struct vtun_host *host)
 {
+     int packet_size = sizeof(short) + VTUN_FRAME_SIZE + VTUN_FRAME_OVERHEAD;
      char tmp_buf[sizeof(short) + VTUN_FRAME_SIZE + VTUN_FRAME_OVERHEAD];
      int rlen;
      unsigned short hdr, flen;
@@ -141,7 +142,7 @@ int kcpoudp_read(int fd, char *buf, int len, struct vtun_host *host)
      // is not enabled (see kcp->stream.).
 
      // read packet header and read length.
-     if ((rlen = ikcp_recv(host->kcp, tmp_buf, len)) < 0) {
+     if ((rlen = ikcp_recv(host->kcp, tmp_buf, packet_size)) < 0) {
          // we should convert it to harmless value to let linkerfd
          // continue to operate.
          return VTUN_ECHO_REP;
@@ -150,6 +151,10 @@ int kcpoudp_read(int fd, char *buf, int len, struct vtun_host *host)
      // Update the status bits which will be used in next calls.
      hdr = ntohs(tmp_buf[0]);
      flen = hdr & VTUN_FSIZE_MASK;
+
+     if( rlen < 2 || (rlen-2) != flen ) {
+         return VTUN_BAD_FRAME;
+     }
 
      // FULL FRAME is fetched...
      memcpy(buf, tmp_buf, flen);

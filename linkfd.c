@@ -296,7 +296,7 @@ int lfd_linker_kcp(void)
          * the local device (fd2) */
 	if( FD_ISSET(fd1, &fdset) && lfd_check_up() ){
 	   idle = 0;  ka_need_verify = 0;
-	   if( (len=kcpoudp_read(fd1, buf, VTUN_FRAME_SIZE + VTUN_FRAME_OVERHEAD, lfd_host)) <= 0 )
+	   if( (len=kcpoudp_read(fd1, buf, lfd_host)) <= 0 )
 	      break;
 
 	   /* Handle frame flags */

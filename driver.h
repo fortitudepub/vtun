@@ -59,7 +59,7 @@ int udp_read(int fd, char *buf);
 
 int kcpoudp_output_cb(const char *buf, int len, ikcpcb *kcp, void *user);
 int kcpoudp_write(int fd, char *buf, int len, struct vtun_host *host);
-int kcpoudp_read(int fd, char *buf, int len, struct vtun_host *host);
+int kcpoudp_read(int fd, char *buf, struct vtun_host *host);
 int kcpoudp_update(struct vtun_host *host, unsigned int now_in_ms);
 
 #endif
