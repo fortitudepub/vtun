@@ -109,7 +109,7 @@ int kcpoudp_write(char *buf, int len, struct vtun_host *host)
          s = spec.tv_sec;
          ms = round(spec.tv_nsec/1000000);
          // use current ms to drive the kcp.
-         kcpoudp_update(host, s*1000+ms);
+         ikcp_update(host->kcp, s*100+ms);
      }
 
      pthread_mutex_unlock(&host->kcp_lock);
@@ -329,7 +329,7 @@ int kcpoudp_read_stream(char *buf, struct vtun_host *host)
 }
 
 int kcpoudp_update(struct vtun_host *host, unsigned int now_in_ms) {
-    pthread_mutex_unlock(&host->kcp_lock);
+    pthread_mutex_lock(&host->kcp_lock);
     ikcp_update(host->kcp, now_in_ms);
     pthread_mutex_unlock(&host->kcp_lock);
     return 0;
