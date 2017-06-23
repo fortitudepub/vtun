@@ -314,15 +314,21 @@ int kcpoudp_session(struct vtun_host *host)
 
      // KCP KLUDGE HERE.
      {
-         host->kcp = ikcp_create(kcpudp_generate_conn_id_by_host(host->host), (void *)host);
-         ikcp_nodelay(host->kcp, 1, 10, 2, 1); // enable fast fast mode!!!
-         host->kcp->rx_minrto = 10; // detect drop asap.
-         host->kcp->fastresend = 1; // detect drop asap.
-         // refer to kcpodup_read static_buf size if you want to change that.
-         ikcp_wndsize(host->kcp, 2048, 2048); // rcvwnd will merge packet, 32*1400(mtu) will note exceed 64k which let us easy to packet decode...
-         host->kcp->output = kcpoudp_output_cb;
-         // init a mutex.
-         pthread_mutex_init(&(host->kcp_lock), 0);
+         if (host->flags & VTUN_KCPOUDP) {
+             host->kcp = ikcp_create(kcpudp_generate_conn_id_by_host(host->host), (void *)host);
+             if (host->kcp_xfast) {
+                 ikcp_nodelay(host->kcp, 1, 10, 2, 1); // enable fast fast mode!!!
+             } else {
+                 ikcp_nodelay(host->kcp, 0, 40, 0, 0);
+             }
+
+             host->kcp->rx_minrto = host->kcp_rto;
+             host->kcp->fastresend = host->kcp_fastresnd;
+             ikcp_wndsize(host->kcp, host->kcp_sndw, host->kcp_rcvw);
+             host->kcp->output = kcpoudp_output_cb;
+             // init a mutex.
+             pthread_mutex_init(&(host->kcp_lock), 0);
+         }
      }
      // KCP...
 

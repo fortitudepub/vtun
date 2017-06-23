@@ -62,6 +62,14 @@ struct kword cfg_keyword[] = {
    { "",K_KALIVE }, 
    { "stat",	 K_STAT }, 
    { "syslog",   K_SYSLOG },
+   { "kcp",K_KCP }, 
+   { "kcp_tick",K_KCP_TICK }, 
+   { "kcp_xfast",K_KCP_XFAST }, 
+   { "kcp_sndw",K_KCP_SNDW }, 
+   { "kcp_rcvw",K_KCP_RCVW }, 
+   { "kcp_rcvw",K_KCP_RCVW }, 
+   { "kcp_rto",K_KCP_RTO }, 
+   { "kcp_fastresend",K_KCP_FASTRESND }, 
    { NULL , 0 }
 };
 

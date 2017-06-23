@@ -269,7 +269,7 @@ void kcp_tx(void *arg) {
         FD_SET(fd2, &fdset); // tun dev fd.
 
         tv.tv_sec  = 0;
-        tv.tv_usec = lfd_host->ka_interval * 1000; // use ka as poll time.
+        tv.tv_usec = lfd_host->kcp_tick * 1000; // use ka as poll time.
 
         if( (len = select(maxfd, &fdset, NULL, NULL, &tv)) < 0 ){
             if( errno != EAGAIN && errno != EINTR )
@@ -338,7 +338,7 @@ void kcp_rx(void *arg) {
         FD_SET(fd1, &fdset);
 
         tv.tv_sec  = 0;
-        tv.tv_usec = lfd_host->ka_interval * 1000; //used as poll time.
+        tv.tv_usec = lfd_host->kcp_tick * 1000; //used as poll time.
 
         if( (len = select(maxfd, &fdset, NULL, NULL, &tv)) < 0 ){
             if( errno != EAGAIN && errno != EINTR )
@@ -622,7 +622,7 @@ void kcp_tick(void *arg) {
      }
 
      // sleep to next round.
-     usleep(host->ka_interval * 1000); // ka in ms.
+     usleep(host->kcp_tick * 1000); // ka in ms.
     }
 }
 /* Link remote and local file descriptors */ 

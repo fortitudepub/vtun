@@ -120,6 +120,12 @@ struct vtun_host {
 
     // KCP KLUDGE.
     ikcpcb *kcp;
+    int kcp_tick;
+    int kcp_xfast;
+    int kcp_sndw;
+    int kcp_rcvw;
+    int kcp_rto;
+    int kcp_fastresnd;
     pthread_mutex_t kcp_lock;
 };
 

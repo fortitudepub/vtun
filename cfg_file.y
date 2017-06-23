@@ -69,13 +69,14 @@ int yyerror(char *s);
    int  num;
    struct { int num1; int num2; } dnum;
 }
-%expect 20
+%expect 27
 
 %token K_OPTIONS K_DEFAULT K_PORT K_BINDADDR K_PERSIST K_TIMEOUT
 %token K_PASSWD K_PROG K_PPP K_SPEED K_IFCFG K_FWALL K_ROUTE K_DEVICE 
 %token K_MULTI K_SRCADDR K_IFACE K_ADDR
 %token K_TYPE K_PROT K_NAT_HACK K_COMPRESS K_ENCRYPT K_KALIVE K_STAT
 %token K_UP K_DOWN K_SYSLOG K_IPROUTE
+%token K_KCP K_KCP_TICK K_KCP_XFAST K_KCP_SNDW K_KCP_RCVW K_KCP_RTO K_KCP_FASTRESND
 
 %token <str> K_HOST K_ERROR
 %token <str> WORD PATH STRING
@@ -330,6 +331,8 @@ host_option: '\n'
 #endif
 			}
 
+  | K_KCP 		'{' kcp_options '}'
+
   | K_SRCADDR 		'{' srcaddr_options '}'
 
   | K_UP 	        { 
@@ -413,6 +416,39 @@ srcaddr_option:
 
   | K_PORT NUM 		{
 			  parse_host->src_addr.port = $2;
+			}
+
+  | K_ERROR		{
+			  cfg_error("Unknown option '%s'",$1);
+			  YYABORT;
+			} 
+  ;
+
+kcp_options: /* empty */
+  | kcp_option
+  | kcp_options kcp_option
+  ;
+
+kcp_option:  
+K_KCP_TICK NUM		{
+			  parse_host->kcp_tick = $2 > 0 ? $2 : 5;
+			}
+
+  | K_KCP_XFAST NUM	{
+			  parse_host->kcp_xfast = $2 != 0 ? 1 : 0;
+			}
+  | K_KCP_SNDW NUM	{
+			  parse_host->kcp_sndw = $2 > 0 ? $2 : 1024;
+			}
+  | K_KCP_RCVW NUM	{
+			  parse_host->kcp_rcvw = $2 > 0 ? $2 : 1024;
+			}
+  | K_KCP_RTO NUM	{
+			  parse_host->kcp_rto = $2 > 0 ? $2 : 10;
+			}
+
+  | K_KCP_FASTRESND NUM	{
+			  parse_host->kcp_fastresnd = $2 != 0 ? 1 : 0;
 			}
 
   | K_ERROR		{

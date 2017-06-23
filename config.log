@@ -748,7 +748,7 @@ configure:5131: $? = 0
 configure:5201: result: none required
 configure:5209: checking for library containing setproctitle
 configure:5239: gcc -o conftest -g -O2   conftest.c  >&5
-/tmp/cce9qN4a.o: In function `main':
+/tmp/cczhIvOb.o: In function `main':
 /home/fortitude/raydo/vpn/vtun-3.0.3/conftest.c:40: undefined reference to `setproctitle'
 collect2: error: ld returned 1 exit status
 configure:5245: $? = 1
@@ -797,7 +797,7 @@ configure: failed program was:
 |   return 0;
 | }
 configure:5294: gcc -o conftest -g -O2   conftest.c -lutil   >&5
-/tmp/ccPuhlne.o: In function `main':
+/tmp/ccTcBbPd.o: In function `main':
 /home/fortitude/raydo/vpn/vtun-3.0.3/conftest.c:40: undefined reference to `setproctitle'
 collect2: error: ld returned 1 exit status
 configure:5300: $? = 1
