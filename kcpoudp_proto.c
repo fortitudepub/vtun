@@ -271,14 +271,11 @@ int kcpoudp_read(char *buf, struct vtun_host *host)
          }
 
          if (flen == 0) {
-             // 无消息体如REQ
-             pthread_mutex_unlock(&host->kcp_lock);
-             return hdr;
+             // 无消息体如REQ，无需拷贝数据
          } else {
              // 有一个带数据的包，拷贝到上层内存中待返回
              memcpy(buf, ((char *)&tmp_buf) + 2, flen);
          }
-
          goto SAVE_UNREAD_BYTES_RETURN;
      }
 
