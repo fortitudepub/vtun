@@ -108,21 +108,22 @@ int kcpoudp_fd_read(int fd, struct vtun_host *host)
      struct sockaddr_in from;
      socklen_t fromlen = sizeof(struct sockaddr);
 
-     /* Late connect (NAT hack enabled) */
-     if (!is_rmt_fd_connected) {
-          while( 1 ){
-               if( (rlen = recvfrom(fd,tmp_buf,2,MSG_PEEK,(struct sockaddr *)&from,&fromlen)) < 0 ){ 
-                    if( errno == EAGAIN || errno == EINTR ) continue;
-                    else return rlen;
-               }
-               else break;
-          }
-          if( connect(fd,(struct sockaddr *)&from,fromlen) ){
-               vtun_syslog(LOG_ERR,"Can't connect socket");
-               return -1;
-          }
-          is_rmt_fd_connected = 1;
-     }
+     // No nat hack is needed in our service.
+     /* /\* Late connect (NAT hack enabled) *\/ */
+     /* if (!is_rmt_fd_connected) { */
+     /*      while( 1 ){ */
+     /*           if( (rlen = recvfrom(fd,tmp_buf,2,MSG_PEEK,(struct sockaddr *)&from,&fromlen)) < 0 ){  */
+     /*                if( errno == EAGAIN || errno == EINTR ) continue; */
+     /*                else return rlen; */
+     /*           } */
+     /*           else break; */
+     /*      } */
+     /*      if( connect(fd,(struct sockaddr *)&from,fromlen) ){ */
+     /*           vtun_syslog(LOG_ERR,"Can't connect socket"); */
+     /*           return -1; */
+     /*      } */
+     /*      is_rmt_fd_connected = 1; */
+     /* } */
 
      while( 1 ){
          // use mtu as udp packet size, can't be that bigger.

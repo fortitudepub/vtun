@@ -335,7 +335,7 @@ void kcp_rx(void *arg) {
         /* Read frames from network(fd1), put to kcp input */
         if( FD_ISSET(fd1, &fdset) && lfd_check_up() ){
             if( (len=kcpoudp_fd_read(fd1, lfd_host)) < 0 ) {
-                vtun_syslog(LOG_ERR,"read error, %d", __LINE__);
+                vtun_syslog(LOG_ERR,"read error %s, %d", strerror(errno), __LINE__);
                 break;
             }
         }
@@ -345,7 +345,7 @@ void kcp_rx(void *arg) {
         if(lfd_check_up() ){
             idle = 0;  ka_need_verify = 0;
             if( (len=kcpoudp_read(buf, lfd_host)) < 0 ) {
-                vtun_syslog(LOG_ERR,"read error, %d", __LINE__);
+                vtun_syslog(LOG_ERR,"read error %s, %d", strerror(errno), __LINE__);
                 break;
             }
 
