@@ -325,7 +325,7 @@ int lfd_linker_kcp(void)
 	      }
 	      if( fl==VTUN_CONN_CLOSE ){
 	         vtun_syslog(LOG_INFO,"Connection closed by other side");
-		 break;
+             break;
 	      }
 	   }   
 
@@ -362,8 +362,9 @@ int lfd_linker_kcp(void)
 	   lfd_host->stat.comp_out += len; 
 	}
      }
-     if( !linker_term && errno )
-	vtun_syslog(LOG_INFO,"%s (%d)", strerror(errno), errno);
+     if( !linker_term && errno ) {
+         vtun_syslog(LOG_INFO,"linker fd exist without received sigterm, errno: %s (%d)", strerror(errno), errno);     
+     }
 
      if (linker_term == VTUN_SIG_TERM) {
        lfd_host->persist = 0;
@@ -510,8 +511,9 @@ int lfd_linker(void)
 	   lfd_host->stat.comp_out += len; 
 	}
      }
-     if( !linker_term && errno )
-	vtun_syslog(LOG_INFO,"%s (%d)", strerror(errno), errno);
+     if( !linker_term && errno ) {
+         vtun_syslog(LOG_INFO,"linker fd exist without received sigterm, errno: %s (%d)", strerror(errno), errno);     
+     }
 
      if (linker_term == VTUN_SIG_TERM) {
        lfd_host->persist = 0;
