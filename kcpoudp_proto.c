@@ -104,9 +104,8 @@ int kcpoudp_read(int fd, char *buf, int len, struct vtun_host *host)
     static unsigned short lasthdr = 0;
      static int pending_frame_data_len = 0; // we may not complete to receive packet.
      static char tmp_buf[sizeof(short) + VTUN_FRAME_SIZE + VTUN_FRAME_OVERHEAD];
-     unsigned int rlen;
+     int rlen;
      unsigned short hdr, flen;
-     struct iovec iv[2];
      struct sockaddr_in from;
      socklen_t fromlen = sizeof(struct sockaddr);
 
