@@ -251,7 +251,7 @@ void kcp_tx(void *arg) {
             errno = 0;
 
             /* Wait for data */
-            maxfd = 1;
+            maxfd = fd2 + 1;
             FD_ZERO(&fdset);
             FD_SET(fd2, &fdset); // tun dev fd.
 
@@ -321,7 +321,7 @@ void kcp_rx(void *arg) {
             errno = 0;
 
             /* Wait for data */
-            maxfd = 1;
+            maxfd = fd1 + 1;
             FD_ZERO(&fdset);
             FD_SET(fd1, &fdset);
 
