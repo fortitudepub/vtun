@@ -295,21 +295,22 @@ int kcpoudp_session(struct vtun_host *host)
 	put this here because we need to keep that incoming triggering
 	packet and pass it back up the chain. */
 
-     if (VTUN_USE_NAT_HACK(host))
-     	is_rmt_fd_connected=0;
-	else {
-     if( connect(s,(struct sockaddr *)&saddr,sizeof(saddr)) ){
-        vtun_syslog(LOG_ERR,"Can't connect socket");
-        return -1;
+     if (0/*VTUN_USE_NAT_HACK(host)*/) { // KCP mode never use NAT Hack. 
+         is_rmt_fd_connected=0;
      }
-     is_rmt_fd_connected=1;
-	}
-     
+     else {
+         if( connect(s,(struct sockaddr *)&saddr,sizeof(saddr)) ){
+             vtun_syslog(LOG_ERR,"Can't connect socket");
+             return -1;
+         }
+         is_rmt_fd_connected=1;
+     }
+
      host->sopt.rport = htons(port);
 
-     /* Close TCP socket and replace with UDP socket */	
-     close(host->rmt_fd); 
-     host->rmt_fd = s;	
+     /* Close TCP socket and replace with UDP socket */
+     close(host->rmt_fd);
+     host->rmt_fd = s;
 
      // KCP KLUDGE HERE.
      {
