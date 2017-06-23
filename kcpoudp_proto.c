@@ -101,9 +101,7 @@ int kcpoudp_write(int fd, char *buf, int len, struct vtun_host *host)
 
 int kcpoudp_read(int fd, char *buf, int len, struct vtun_host *host)
 {
-    static unsigned short lasthdr = 0;
-     static int pending_frame_data_len = 0; // we may not complete to receive packet.
-     static char tmp_buf[sizeof(short) + VTUN_FRAME_SIZE + VTUN_FRAME_OVERHEAD];
+     char tmp_buf[sizeof(short) + VTUN_FRAME_SIZE + VTUN_FRAME_OVERHEAD];
      int rlen;
      unsigned short hdr, flen;
      struct sockaddr_in from;
@@ -139,40 +137,24 @@ int kcpoudp_read(int fd, char *buf, int len, struct vtun_host *host)
         break;
 	}
 
-     // KCP is act as stream protocol for upper, we must carefully handle packet
-     // borders.
+     // seems kcp is datagram protocol, emulation of stream protocol
+     // is not enabled (see kcp->stream.).
 
      // read packet header and read length.
-     if (pending_frame_data_len == 0) {
-         if ((rlen = ikcp_recv(host->kcp, tmp_buf, sizeof(short))) < 0) {
-             // we should convert it to harmless value to let linkerfd
-             // continue to operate.
-             return VTUN_ECHO_REP;
-         }
-
-         // Update the status bits which will be used in next calls.
-         lasthdr = hdr = ntohs(tmp_buf[0]);
-         pending_frame_data_len = flen = hdr & VTUN_FSIZE_MASK;
-         flen = hdr & VTUN_FSIZE_MASK;
-
-         // for throught to fetch frame data.
-     }
-
-     // read data frame through kcp.
-     if ((rlen = ikcp_recv(host->kcp, tmp_buf, flen)) < 0) {
-         // In this case, we reserve pending_frame_data_len and last_hdr
-         // when this function called next time, we can fetch full packet...
-         // If ikcp_recv signal us EAGAIN through negative value
+     if ((rlen = ikcp_recv(host->kcp, tmp_buf, len)) < 0) {
          // we should convert it to harmless value to let linkerfd
          // continue to operate.
          return VTUN_ECHO_REP;
      }
 
+     // Update the status bits which will be used in next calls.
+     hdr = ntohs(tmp_buf[0]);
+     flen = hdr & VTUN_FSIZE_MASK;
+
      // FULL FRAME is fetched...
      memcpy(buf, tmp_buf, flen);
-     pending_frame_data_len = 0;
 
-     return lasthdr;
+     return hdr;
 }
 
 int kcpoudp_update(struct vtun_host *host, unsigned int now_in_ms) {
