@@ -229,6 +229,12 @@ static void sig_usr1(int sig)
      lfd_host->stat.comp_in = lfd_host->stat.comp_out = 0; 
 }
 
+void set_noblocking(int fd)
+{
+    int flags = fcntl(fd, F_GETFL, 0);
+    fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+}
+
 void kcp_tx(void *arg) {
     struct vtun_host *lfd_host = arg;
     int fd2 = lfd_host->loc_fd;
@@ -250,6 +256,9 @@ void kcp_tx(void *arg) {
     linker_term = 0;
     while( !linker_term ){
         errno = 0;
+
+        // switch to noblocking mode.
+        set_noblocking(fd2);
 
         /* Wait for data */
         maxfd = fd2 + 1;
@@ -323,6 +332,9 @@ void kcp_rx(void *arg) {
     linker_term = 0;
     while( !linker_term ){
         errno = 0;
+
+        // switch to noblocking mode.
+        set_noblocking(fd1);
 
         /* Wait for data */
         maxfd = fd1 + 1;
