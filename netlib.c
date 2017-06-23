@@ -315,7 +315,8 @@ int kcpoudp_session(struct vtun_host *host)
      // KCP KLUDGE HERE.
      {
          host->kcp = ikcp_create(kcpudp_generate_conn_id_by_host(host->host), (void *)host);
-         ikcp_nodelay(host->kcp, 1, 10, 2, 1); // enable fast fast mode!!!
+         //         ikcp_nodelay(host->kcp, 1, 10, 2, 1); // enable fast fast mode!!!
+         ikcp_nodelay(host->kcp, 0, 40, 0, 0); // normal mode.
          host->kcp->rx_minrto = 10; // detect drop asap.
          host->kcp->fastresend = 1; // detect drop asap.
          // refer to kcpodup_read static_buf size if you want to change that.
