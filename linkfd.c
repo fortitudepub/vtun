@@ -287,7 +287,7 @@ void kcp_tx(void *arg) {
         }
     }
     if( !linker_term && errno ) {
-        vtun_syslog(LOG_INFO,"linker fd exist without received sigterm, errno: %s (%d)", strerror(errno), errno);     
+        vtun_syslog(LOG_INFO,"linker fd exist without received sigterm, errno: %s", strerror(errno));     
     }
 
     if (linker_term == VTUN_SIG_TERM) {
@@ -379,8 +379,10 @@ void kcp_rx(void *arg) {
             if( (len=lfd_run_up(len,buf,&out)) == -1 )
             break;
             if( len && dev_write(fd2,out,len) < 0 ){
-                if( errno != EAGAIN && errno != EINTR )
-                break;
+                if( errno != EAGAIN && errno != EINTR ) {
+                    vtun_syslog(LOG_ERR,"write to device failed error %s", strerr(errno));
+                    continue;
+                }
                 else {
                     // should not continue;, need give a chance for dev read.
                 }
@@ -390,7 +392,7 @@ void kcp_rx(void *arg) {
     }
 
     if( !linker_term && errno ) {
-        vtun_syslog(LOG_INFO,"linker fd exist without received sigterm, errno: %s (%d)", strerror(errno), errno);     
+        vtun_syslog(LOG_INFO,"linker fd exist without received sigterm, errno: %s", strerror(errno));     
     }
 
     if (linker_term == VTUN_SIG_TERM) {

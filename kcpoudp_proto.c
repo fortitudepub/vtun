@@ -197,8 +197,9 @@ int kcpoudp_read(char *buf, struct vtun_host *host)
                  pthread_mutex_unlock(&host->kcp_lock);
                  return VTUN_ECHO_REP;
              }
-             static_buf[1] = tmp_buf[0];
-             hdr = ntohs(*(unsigned short *)(&static_buf[0]));
+             tmp_buf[1] = tmp_buf[0];
+             tmp_buf[0] = static_buf[0];
+             hdr = ntohs(*(unsigned short *)(&tmp_buf[0]));
              flen = hdr & VTUN_FSIZE_MASK;
              peek_size = flen + 1;
          }
@@ -219,22 +220,26 @@ int kcpoudp_read(char *buf, struct vtun_host *host)
          }
 
          if (flen == 0) {
-             // 无消息体如REQ
-             // 保存多余的包
-             goto SAVE_UNREAD_BYTES_RETURN;
+             // REQ只有头
+         } else {
+             // 拼出完整包给上层
+             if (unread_bytes > 2) {
+                 // 把上次残留的数据的报文用过来
+                 memcpy(buf, (char*)static_buf + 2, unread_bytes - 2);
+                 memcpy(buf + unread_bytes - 2, ((char *)&tmp_buf), rlen - peek_size);
+             } else { //余1个字节的特殊情况
+                 memcpy(buf, ((char *)&tmp_buf) + 1, flen);
+             }
+         }
+         // 重新填冲static buf
+         unread_bytes = rlen - peek_size;
+         // 把未读的内存移到static_buf起始，以便下次进来读取
+         if (unread_bytes) {
+             memcpy((char *)static_buf, ((char*)tmp_buf) + peek_size, unread_bytes);
          }
 
-         // 拼出完整包给上层
-         if (unread_bytes > 2) {
-             // 把上次残留的数据的报文用过来
-             memcpy(buf, (char*)static_buf + 2, unread_bytes - 2);
-             memcpy(buf + unread_bytes - 2, ((char *)&tmp_buf), rlen - peek_size);
-         } else { //余1个字节的特殊情况
-             memcpy(buf, ((char *)&tmp_buf) + 1, flen);
-         }
-
-         // 保存多余的包
-         goto SAVE_UNREAD_BYTES_RETURN;
+         pthread_mutex_unlock(&host->kcp_lock);
+         return hdr;
      } else { // 上次无残留
          // peek直至存在有大于包头（2）的长度
          rlen = ikcp_recv(host->kcp, tmp_buf, -2);
@@ -251,7 +256,7 @@ int kcpoudp_read(char *buf, struct vtun_host *host)
          // peek at least contain a header.
          peek_size = 2 + flen;
          rlen = ikcp_recv(host->kcp, tmp_buf, -peek_size);
-         if ((rlen != -3) && (rlen < 2+flen)) {
+         if ((rlen != -3) && (rlen < peek_size)) {
              // 包不够长，等下一轮
              pthread_mutex_unlock(&host->kcp_lock);
              return VTUN_ECHO_REP;
@@ -270,19 +275,16 @@ int kcpoudp_read(char *buf, struct vtun_host *host)
              // 有一个带数据的包，拷贝到上层内存中待返回
              memcpy(buf, ((char *)&tmp_buf) + 2, flen);
          }
-         goto SAVE_UNREAD_BYTES_RETURN;
-     }
+         // 被peek走的数据都用掉了
+         unread_bytes = rlen - peek_size;
+         // 把未读的内存移到static_buf起始，以便下次进来读取
+         if (unread_bytes) {
+             memcpy((char *)static_buf, ((char*)tmp_buf) + peek_size, unread_bytes);
+         }
 
-SAVE_UNREAD_BYTES_RETURN:
-     // 被peek走的数据都用掉了
-     unread_bytes = rlen - peek_size;
-     // 把未读的内存移到static_buf起始，以便下次进来读取
-     if (unread_bytes) {
-         memcpy((char *)static_buf, ((char*)tmp_buf) + peek_size, unread_bytes);
+         pthread_mutex_unlock(&host->kcp_lock);
+         return hdr;
      }
-
-     pthread_mutex_unlock(&host->kcp_lock);
-     return hdr;
 }
 
 int kcpoudp_update(struct vtun_host *host, unsigned int now_in_ms) {
