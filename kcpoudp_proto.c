@@ -191,7 +191,7 @@ int kcpoudp_read(char *buf, struct vtun_host *host)
              // 余了1个字节，这个非常特殊，要peek一字节后再拼起来
              // 保存之，tmp_buf将被改写
              rlen = ikcp_recv(host->kcp, tmp_buf, -1);
-             if ((rlen != -3) && (rlen != 1)) {
+             if ((rlen != -3) && (rlen < 1)) {
                  // 包不够长，等下一轮
                  pthread_mutex_unlock(&host->kcp_lock);
                  return VTUN_ECHO_REP;
@@ -204,7 +204,7 @@ int kcpoudp_read(char *buf, struct vtun_host *host)
 
          // peek at least contain a header.
          rlen = ikcp_recv(host->kcp, tmp_buf, -peek_size);
-         if ((rlen != -3) && (rlen != peek_size)) {
+         if ((rlen != -3) && (rlen < peek_size)) {
              // 包不够长，等下一轮
              pthread_mutex_unlock(&host->kcp_lock);
              return VTUN_ECHO_REP;
@@ -237,7 +237,7 @@ int kcpoudp_read(char *buf, struct vtun_host *host)
      } else { // 上次无残留
          // peek直至存在有大于包头（2）的长度
          rlen = ikcp_recv(host->kcp, tmp_buf, -2);
-         if ((rlen != -3) && (rlen != 2)) {
+         if ((rlen != -3) && (rlen < 2)) {
              // 包不够长，等下一轮
              pthread_mutex_unlock(&host->kcp_lock);
              return VTUN_ECHO_REP;
@@ -250,7 +250,7 @@ int kcpoudp_read(char *buf, struct vtun_host *host)
          // peek at least contain a header.
          peek_size = 2 + flen;
          rlen = ikcp_recv(host->kcp, tmp_buf, -peek_size);
-         if ((rlen != -3) && (rlen != 2+flen)) {
+         if ((rlen != -3) && (rlen < 2+flen)) {
              // 包不够长，等下一轮
              pthread_mutex_unlock(&host->kcp_lock);
              return VTUN_ECHO_REP;
