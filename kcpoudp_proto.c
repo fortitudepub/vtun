@@ -99,7 +99,7 @@ int kcpoudp_write(int fd, char *buf, int len, struct vtun_host *host)
      return 0;
 }
 
-int kcpoudp_read(int fd, char *buf, struct vtun_host *host)
+int kcpoudp_fd_read(int fd, struct vtun_host *host)
 {
      int packet_size = sizeof(short) + VTUN_FRAME_SIZE + VTUN_FRAME_OVERHEAD;
      char tmp_buf[sizeof(short) + VTUN_FRAME_SIZE + VTUN_FRAME_OVERHEAD];
@@ -137,6 +137,16 @@ int kcpoudp_read(int fd, char *buf, struct vtun_host *host)
         ikcp_input(host->kcp, tmp_buf, rlen);
         break;
 	}
+
+     return 0;
+}
+
+int kcpoudp_read(int fd, char *buf, struct vtun_host *host)
+{
+     int packet_size = sizeof(short) + VTUN_FRAME_SIZE + VTUN_FRAME_OVERHEAD;
+     char tmp_buf[sizeof(short) + VTUN_FRAME_SIZE + VTUN_FRAME_OVERHEAD];
+     int rlen;
+     unsigned short hdr, flen;
 
      // seems kcp is datagram protocol, emulation of stream protocol
      // is not enabled (see kcp->stream.).

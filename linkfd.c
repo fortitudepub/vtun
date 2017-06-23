@@ -256,7 +256,10 @@ int lfd_linker_kcp(void)
 
  	tv.tv_sec  = 0;
     // ka_interval is redefined as millis, this may cause cpu a little
-    // high, but we accept it since the server is not so load. 
+    // high, but we accept it since the server is not so load.
+    // And this also make this process in a busy poll mode (like DPDK,
+    // we are network forwarder, we have to burn cpu otherwise it's
+    // wasted...)
 	tv.tv_usec = lfd_host->ka_interval * 1000;
 
 	if( (len = select(maxfd, &fdset, NULL, NULL, &tv)) < 0 ){
@@ -294,9 +297,17 @@ int lfd_linker_kcp(void)
 	   lfd_host->stat.comp_out += tmplen; 
         }
 
-	/* Read frames from network(fd1), decode and pass them to 
-         * the local device (fd2) */
+	/* Read frames from network(fd1), put to kcp input */
 	if( FD_ISSET(fd1, &fdset) && lfd_check_up() ){
+	   if( (len=kcpoudp_fd_read(fd1, lfd_host)) <= 0 ) {
+           vtun_syslog(LOG_ERR,"read error, %d", __LINE__);
+           break;
+       }
+    }
+
+    /* try decode packet from kcp EACH ROUND since
+       we actually turn this main loop a busy poll mode. */
+	if(lfd_check_up() ){
 	   idle = 0;  ka_need_verify = 0;
 	   if( (len=kcpoudp_read(fd1, buf, lfd_host)) <= 0 ) {
            vtun_syslog(LOG_ERR,"read error, %d", __LINE__);
