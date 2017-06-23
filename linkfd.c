@@ -243,6 +243,9 @@ void kcp_tx(void *arg) {
         return;
     }
 
+    // Init ping  ..
+    kcpoudp_write(buf, VTUN_ECHO_REQ, lfd_host);
+
     linker_term = 0;
     while( !linker_term ){
         errno = 0;
