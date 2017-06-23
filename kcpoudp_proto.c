@@ -170,26 +170,20 @@ int kcpoudp_read(char *buf, struct vtun_host *host)
          if (unread_bytes > 2) {
              hdr = ntohs(*(unsigned short *)(&static_buf[0]));
              flen = hdr & VTUN_FSIZE_MASK;
-             if (flen == 0) {
-                 // 无消息体如REQ
-                 // 这里没法共享下面的逻辑，因为要调整static buf
-                 unread_bytes -= 2;
-                 if (unread_bytes) {
-                     memmove((char *)static_buf, ((char*)static_buf) + 2, unread_bytes);                     
-                 }
-                 pthread_mutex_lock(&host->kcp_lock);
-                 return hdr;
-             }
-             else if (unread_bytes >= (2 + flen)) { // 残留足够一个包
+             if (unread_bytes >= (2 + flen)) { // 残留足够一个包
                  // 有一个完整包，拷贝到上层内存中待返回
-                 memcpy(buf, ((char *)&static_buf) + 2, flen);
+                 if (flen !=0 ){
+                     memcpy(buf, ((char *)&static_buf) + 2, flen);
+                 } else {
+                     // REQ包，无包体，只有hdr
+                 }
 
                  // 这里没法共享下面的逻辑，因为要调整static buf
                  unread_bytes -= 2 + flen;
                  if (unread_bytes) {
                      memmove((char *)static_buf, ((char*)static_buf) + 2, unread_bytes);                     
                  }
-                 pthread_mutex_lock(&host->kcp_lock);
+                 pthread_mutex_unlock(&host->kcp_lock);
                  return hdr;
              } else { // 残留不足一个包
                  peek_size = (2 + flen) - unread_bytes;
