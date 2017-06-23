@@ -157,7 +157,7 @@ int kcpoudp_read(int fd, char *buf, struct vtun_host *host)
      }
 
      // skip hdr bit and copy FULL data FRAME...
-     memcpy(buf, (char *)tmp_buf + 2, flen);
+     memcpy(buf, ((char *)&tmp_buf) + 2, flen);
 
      return hdr;
 }
