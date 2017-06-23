@@ -309,7 +309,7 @@ int lfd_linker_kcp(void)
        we actually turn this main loop a busy poll mode. */
 	if(lfd_check_up() ){
 	   idle = 0;  ka_need_verify = 0;
-	   if( (len=kcpoudp_read(fd1, buf, lfd_host)) <= 0 ) {
+	   if( (len=kcpoudp_read(fd1, buf, lfd_host)) < 0 ) {
            vtun_syslog(LOG_ERR,"read error, %d", __LINE__);
            break;
        }
