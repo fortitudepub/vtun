@@ -100,6 +100,18 @@ int kcpoudp_write(char *buf, int len, struct vtun_host *host)
          return 0;
      }
 
+     // flush asap.
+     {
+         long ms;
+         time_t s;
+         struct timespec spec;
+         clock_gettime(CLOCK_REALTIME, &spec);
+         s = spec.tv_sec;
+         ms = round(spec.tv_nsec/1000000);
+         // use current ms to drive the kcp.
+         kcpoudp_update(host, s*1000+ms);
+     }
+
      pthread_mutex_unlock(&host->kcp_lock);
      return 0;
 }
