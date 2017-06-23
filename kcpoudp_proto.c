@@ -151,12 +151,13 @@ int kcpoudp_fd_read(int fd, struct vtun_host *host)
 
 // kcp->stream == 0, default mode.
 int kcpoudp_read(char *buf, struct vtun_host *host) {
-     char tmp_buf[65535];
+     char tmp_buf[1500];
      int rlen;
      unsigned short hdr, flen;
 
      pthread_mutex_lock(&host->kcp_lock);
-     if ((rlen = ikcp_recv(host->kcp, tmp_buf, packet_size)) < 0) {
+     // use mtu is enough.
+     if ((rlen = ikcp_recv(host->kcp, tmp_buf, 1500)) < 0) {
          // we should convert it to harmless value to let linkerfd
          // continue to operate.
          pthread_mutex_unlock(&host->kcp_lock);
