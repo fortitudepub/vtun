@@ -265,8 +265,9 @@ int lfd_linker_kcp(void)
 	if( (len = select(maxfd, &fdset, NULL, NULL, &tv)) < 0 ){
 	   if( errno != EAGAIN && errno != EINTR )
 	      break;
-	   else
-	      continue;
+	   else {
+           // should not continue;, need give a chance for kcp to recv.
+       }
 	}
 
 	if( ka_need_verify ){
@@ -363,15 +364,15 @@ int lfd_linker_kcp(void)
 		 continue;
 	   }
 	   if( !len ) break;
-	
-	   lfd_host->stat.byte_out += len; 
+
+	   lfd_host->stat.byte_out += len;
 	   if( (len=lfd_run_down(len,buf,&out)) == -1 )
 	      break;
 	   if( len && kcpoudp_write(fd1, out, len, lfd_host) < 0 ) {
            vtun_syslog(LOG_ERR,"write error, %d", __LINE__);
            break;
        }
-	   lfd_host->stat.comp_out += len; 
+	   lfd_host->stat.comp_out += len 
 	}
      }
      if( !linker_term && errno ) {
