@@ -316,8 +316,8 @@ int kcpoudp_session(struct vtun_host *host)
      {
          host->kcp = ikcp_create(kcpudp_generate_conn_id_by_host(host->host), (void *)host);
          ikcp_nodelay(host->kcp, 1, 10, 2, 1); // enable fast fast mode!!!
-         host->kcp->rx_minrto = 10; // detect drop asap.
-         ikcp_wndsize(host->kcp, 1024, 1024); // bigger...
+         host->kcp->rx_minrto = 50; // detect drop asap.
+         ikcp_wndsize(host->kcp, 2048, 10248); // bigger...
          host->kcp->output = kcpoudp_output_cb;
          // init a mutex.
          pthread_mutex_init(&(host->kcp_lock), 0);
