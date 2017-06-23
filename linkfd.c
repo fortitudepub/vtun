@@ -309,7 +309,7 @@ int lfd_linker_kcp(void)
        we actually turn this main loop a busy poll mode. */
 	if(lfd_check_up() ){
 	   idle = 0;  ka_need_verify = 0;
-	   if( (len=kcpoudp_read(fd1, buf, lfd_host)) < 0 ) {
+	   if( (len=kcpoudp_read(buf, lfd_host)) < 0 ) {
            vtun_syslog(LOG_ERR,"read error, %d", __LINE__);
            break;
        }
@@ -320,34 +320,35 @@ int lfd_linker_kcp(void)
 	   if( fl ){
 	      if( fl==VTUN_BAD_FRAME ){
 		 vtun_syslog(LOG_ERR, "Received bad frame");
-		 continue;
+		 // should not continue;, need give a chance for dev read.
 	      }
-	      if( fl==VTUN_ECHO_REQ ){
+	      else if( fl==VTUN_ECHO_REQ ){
 		 /* Send ECHO reply */
               if( kcpoudp_write(fd1, buf, VTUN_ECHO_REP, lfd_host) < 0 ) {
                   vtun_syslog(LOG_ERR,"write error, %d", __LINE__);
                   break;
               }
-		 continue;
+              // should not continue;, need give a chance for dev read.
 	      }
-   	      if( fl==VTUN_ECHO_REP ){
-		 /* Just ignore ECHO reply, ka_need_verify==0 already */
-		 continue;
+   	      else if( fl==VTUN_ECHO_REP ){
+              /* Just ignore ECHO reply, ka_need_verify==0 already */
+              // should not continue;, need give a chance for dev read.
 	      }
-	      if( fl==VTUN_CONN_CLOSE ){
+	      else if( fl==VTUN_CONN_CLOSE ){
 	         vtun_syslog(LOG_INFO,"Connection closed by other side");
-             break;
+              // should not continue;, need give a chance for dev read.
 	      }
-	   }   
+	   }
 
 	   lfd_host->stat.comp_in += len; 
 	   if( (len=lfd_run_up(len,buf,&out)) == -1 )
-	      break;	
+	      break;
 	   if( len && dev_write(fd2,out,len) < 0 ){
               if( errno != EAGAIN && errno != EINTR )
                  break;
-              else
-                 continue;
+              else {
+                  // should not continue;, need give a chance for dev read.
+              }
            }
 	   lfd_host->stat.byte_in += len; 
 	}
