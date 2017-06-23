@@ -372,7 +372,7 @@ int lfd_linker_kcp(void)
            vtun_syslog(LOG_ERR,"write error, %d", __LINE__);
            break;
        }
-	   lfd_host->stat.comp_out += len 
+	   lfd_host->stat.comp_out += len;
 	}
      }
      if( !linker_term && errno ) {
