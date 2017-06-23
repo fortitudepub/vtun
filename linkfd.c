@@ -380,7 +380,7 @@ void kcp_rx(void *arg) {
             break;
             if( len && dev_write(fd2,out,len) < 0 ){
                 if( errno != EAGAIN && errno != EINTR ) {
-                    vtun_syslog(LOG_ERR,"write to device failed error %s", strerr(errno));
+                    vtun_syslog(LOG_ERR,"write to device failed error %s", strerror(errno));
                     continue;
                 }
                 else {
