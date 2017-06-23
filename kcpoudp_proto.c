@@ -156,8 +156,8 @@ int kcpoudp_read(int fd, char *buf, struct vtun_host *host)
          return VTUN_BAD_FRAME;
      }
 
-     // FULL FRAME is fetched...
-     memcpy(buf, tmp_buf, flen);
+     // skip hdr bit and copy FULL data FRAME...
+     memcpy(buf, (char *)tmp_buf + 2, flen);
 
      return hdr;
 }
