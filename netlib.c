@@ -314,7 +314,7 @@ int kcpoudp_session(struct vtun_host *host)
      // KCP KLUDGE HERE.
      {
          host->kcp = ikcp_create(kcpudp_generate_conn_id_by_host(host->host), (void *)host);
-         ickp_nodelay(host->kcp, 1, 20, 2, 1); // enable fast fast mode!!!
+         ikcp_nodelay(host->kcp, 1, 20, 2, 1); // enable fast fast mode!!!
          host->kcp->output = kcpoudp_output_cb;
      }
      // KCP...
