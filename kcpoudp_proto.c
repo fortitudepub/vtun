@@ -96,8 +96,8 @@ int kcpoudp_write(char *buf, int len, struct vtun_host *host)
      pthread_mutex_lock(&host->kcp_lock);
      if( (ikcp_send(host->kcp, ptr, len)) < 0 ) {
          // Do no propogate ikcp error.
-         pthread_mutext_unlock(&host->kcp_lock);
-	      return 0;
+         pthread_mutex_unlock(&host->kcp_lock);
+         return 0;
      }
 
      pthread_mutex_unlock(&host->kcp_lock);
