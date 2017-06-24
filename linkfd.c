@@ -269,7 +269,7 @@ void kcp_tx(void *arg) {
         FD_SET(fd2, &fdset); // tun dev fd.
 
         tv.tv_sec  = 0;
-        tv.tv_usec = lfd_host->kcp_tick * 1000;
+        tv.tv_usec = lfd_host->kcp_tick;
 
         if( (len = select(maxfd, &fdset, NULL, NULL, &tv)) < 0 ){
             if( errno != EAGAIN && errno != EINTR )
@@ -339,7 +339,7 @@ void kcp_rx(void *arg) {
         FD_SET(fd1, &fdset);
 
         tv.tv_sec  = 0;
-        tv.tv_usec = lfd_host->kcp_tick * 1000;
+        tv.tv_usec = lfd_host->kcp_tick;
 
         if( (len = select(maxfd, &fdset, NULL, NULL, &tv)) < 0 ){
             if( errno != EAGAIN && errno != EINTR )
@@ -432,6 +432,149 @@ void kcp_rx(void *arg) {
     return;
 }
 
+int kcp_tx_rx(void *arg) {
+    struct vtun_host *lfd_host = arg;
+    int fd1 = lfd_host->rmt_fd;
+    int fd2 = lfd_host->loc_fd;
+    register int len, fl;
+    struct timeval tv;
+    char *buf, *out;
+    fd_set fdset;
+    int maxfd, idle = 0, tmplen;
+
+    if( !(buf = lfd_alloc(VTUN_FRAME_SIZE + VTUN_FRAME_OVERHEAD)) ){
+        vtun_syslog(LOG_ERR,"Can't allocate buffer for the linker"); 
+        return -1;
+    }
+
+    // reserver bits for encoding.
+    buf = buf + sizeof(short);
+
+    // Init ping  ..
+    kcpoudp_write(buf, VTUN_ECHO_REQ, lfd_host);
+
+    linker_term = 0;
+    while( !linker_term ){
+        errno = 0;
+
+        /* Wait for data */
+        maxfd = (fd1 > fd2 ? fd1 : fd2)  + 1;
+        FD_ZERO(&fdset);
+        FD_SET(fd1, &fdset); // tun dev fd.
+        FD_SET(fd2, &fdset); // tun dev fd.
+
+        tv.tv_sec  = 0;
+        tv.tv_usec = lfd_host->kcp_tick;
+
+        if( (len = select(maxfd, &fdset, NULL, NULL, &tv)) < 0 ){
+            if( errno != EAGAIN && errno != EINTR )
+            break;
+            else {
+                // no continue to enable kcp receive.
+            }
+        }
+
+        /* Read data from the local device(fd2), tx to kcp */
+        if( FD_ISSET(fd2, &fdset) && lfd_check_down() ) {
+            if( (len = dev_read(fd2, buf, VTUN_FRAME_SIZE)) < 0 ){
+                if( errno != EAGAIN && errno != EINTR )
+                break;
+                else {
+                    // no continue to enable kcp receive.
+                }
+            }
+            if( !len ) break;
+
+            lfd_host->stat.byte_out += len;
+            if( (len=lfd_run_down(len,buf,&out)) == -1 )
+            break;
+            if( len && kcpoudp_write(out, len, lfd_host) < 0 ) {
+                vtun_syslog(LOG_ERR,"write error, %d", __LINE__);
+                break;
+            }
+            lfd_host->stat.comp_out += len;
+        }
+
+        /* Read frames from network(fd1), put to kcp input */
+        if( FD_ISSET(fd1, &fdset) && lfd_check_up() ){
+            if( (len=kcpoudp_fd_read(fd1, lfd_host)) < 0 ) {
+                vtun_syslog(LOG_ERR,"read error %s, %d", strerror(errno), __LINE__);
+                break;
+            }
+        }
+
+        /* try decode packet from kcp EACH ROUND since
+           we actually turn this main loop a busy poll mode. */
+        if(lfd_check_up() ) {
+            idle = 0;  ka_need_verify = 0;
+            if( (len=kcpoudp_read(buf, lfd_host)) < 0 ) {
+                vtun_syslog(LOG_ERR,"read error %s, %d", strerror(errno), __LINE__);
+                break;
+            }
+
+            /* Handle frame flags */
+            fl = len & ~VTUN_FSIZE_MASK;
+            len = len & VTUN_FSIZE_MASK;
+            if( fl ){
+                if( fl==VTUN_BAD_FRAME ){
+                    vtun_syslog(LOG_ERR, "Received bad frame");
+                    // should not continue;, need give a chance for dev read.
+                }
+                else if( fl==VTUN_ECHO_REQ ){
+                    /* Send ECHO reply */
+                    if( kcpoudp_write(buf, VTUN_ECHO_REP, lfd_host) < 0 ) {
+                        vtun_syslog(LOG_ERR,"write error, %d", __LINE__);
+                        break;
+                    }
+                    // should not continue;, need give a chance for dev read.
+                }
+                else if( fl==VTUN_ECHO_REP ){
+                    /* Just ignore ECHO reply, ka_need_verify==0 already */
+                    // should not continue;, need give a chance for dev read.
+                }
+                else if( fl==VTUN_CONN_CLOSE ){
+                    vtun_syslog(LOG_INFO,"Connection closed by other side");
+                    // should not continue;, need give a chance for dev read.
+                }
+            }
+
+            lfd_host->stat.comp_in += len;
+            if( (len=lfd_run_up(len,buf,&out)) == -1 ) {
+                break;
+            }
+            while (1) {
+                if( len && dev_write(fd2,out,len) < 0 ) {
+                    if( errno != EAGAIN && errno != EINTR ) {
+                        vtun_syslog(LOG_ERR,"write to device failed error %s", strerror(errno));
+                        // This continue do not terminate the tx rx, might be
+                        // system error.
+                        break;
+                    } else {
+                        // This may be caused by tun queue full, rewrite again to
+                        // reduce packet drop.
+                        continue;
+                    }
+                }
+
+                break; // transmit ok.
+                lfd_host->stat.byte_in += len;
+            }
+        }
+    }
+
+    if( !linker_term && errno ) {
+        vtun_syslog(LOG_INFO,"linker rx tx exist without received sigterm, errno: %s", strerror(errno));     
+    }
+
+    if (linker_term == VTUN_SIG_TERM) {
+        lfd_host->persist = 0;
+    }
+
+    lfd_free(buf);
+
+    return -1;
+}
+
 int lfd_linker(void)
 {
      int fd1 = lfd_host->rmt_fd;
@@ -443,33 +586,39 @@ int lfd_linker(void)
      int maxfd, idle = 0, tmplen;
 
      if (lfd_host->kcp != 0) {
-         kcp_tx_thread_created = 0;
-         pthread_create(&kcp_tx_thread, 0, kcp_tx, (void *)lfd_host);
-         kcp_tx_thread_created = 1;
+         if (0) { // m thread mode.
+             kcp_tx_thread_created = 0;
+             pthread_create(&kcp_tx_thread, 0, kcp_tx, (void *)lfd_host);
+             kcp_tx_thread_created = 1;
 
-         kcp_rx_thread_created = 0;
-         pthread_create(&kcp_rx_thread, 0, kcp_rx, (void *)lfd_host);
-         kcp_rx_thread_created = 1;
+             kcp_rx_thread_created = 0;
+             pthread_create(&kcp_rx_thread, 0, kcp_rx, (void *)lfd_host);
+             kcp_rx_thread_created = 1;
 
-         while (1) {
-             int ret;
-             ret = pthread_tryjoin_np(kcp_tx_thread, 0);
-             if (ret == 0) {
-                 vtun_syslog(LOG_INFO,"kcp tx thread exits, close rx thread too...");
-                 pthread_cancel(kcp_rx_thread);
-                 break;
+             while (1) {
+                 int ret;
+                 ret = pthread_tryjoin_np(kcp_tx_thread, 0);
+                 if (ret == 0) {
+                     vtun_syslog(LOG_INFO,"kcp tx thread exits, close rx thread too...");
+                     pthread_cancel(kcp_rx_thread);
+                     break;
+                 }
+                 ret = pthread_tryjoin_np(kcp_rx_thread, 0);
+                 if (ret == 0) {
+                     vtun_syslog(LOG_INFO,"kcp rx thread exits, close tx thread too...");
+                     pthread_cancel(kcp_tx_thread);
+                     break;
+                 }
+
+                 usleep(500*1000); // check 0.5 s.
+
              }
-             ret = pthread_tryjoin_np(kcp_rx_thread, 0);
-             if (ret == 0) {
-                 vtun_syslog(LOG_INFO,"kcp rx thread exits, close tx thread too...");
-                 pthread_cancel(kcp_tx_thread);
-                 break;
-             }
 
-             usleep(500*1000); // check 0.5 s.
+             // join finished, all thread exits...
+             return -1;
+         } else {
+             return kcp_tx_rx(lfd_host);
          }
-         // join finished, all thread exits...
-         return -1;
      }
 
      if( !(buf = lfd_alloc(VTUN_FRAME_SIZE + VTUN_FRAME_OVERHEAD)) ){
@@ -632,7 +781,7 @@ void kcp_tick(void *arg) {
      }
 
      // sleep to next round.
-     usleep(host->kcp_tick * 1000); // ka in ms.
+     usleep(host->kcp_tick); // ka in ms.
     }
 }
 /* Link remote and local file descriptors */ 
