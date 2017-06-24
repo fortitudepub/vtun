@@ -496,7 +496,7 @@ int kcp_tx_rx(void *arg) {
         }
 
         /* Read frames from network(fd1), put to kcp input */
-        if( FD_ISSET(fd1, &fdset) && lfd_check_up() ){
+        if( FD_ISSET(fd1, &fdset) && lfd_check_up() ) {
             if( (len=kcpoudp_fd_read(fd1, lfd_host)) < 0 ) {
                 vtun_syslog(LOG_ERR,"read error %s, %d", strerror(errno), __LINE__);
                 break;
@@ -559,6 +559,18 @@ int kcp_tx_rx(void *arg) {
                 break; // transmit ok.
                 lfd_host->stat.byte_in += len;
             }
+        }
+
+        // every round we need update kcp internal tick.
+        {
+            long ms;
+            time_t s;
+            struct timespec spec;
+            clock_gettime(CLOCK_REALTIME, &spec);
+            s = spec.tv_sec;
+            ms = round(spec.tv_nsec/1000000);
+            // use current ms to drive the kcp.
+            kcpoudp_update(lfd_host, s*1000+ms);
         }
     }
 
@@ -826,9 +838,10 @@ int linkfd(struct vtun_host *host)
      if (host->flags & VTUN_KCPOUDP) {
          // VTUN KCPOUDP does not use SIGALRM because it can only provide
          // precision in second.
-         kcp_tick_thread_created = 0;
+         // integerate tick to tx rx thread.
+         /*         kcp_tick_thread_created = 0;
          pthread_create(&kcp_tick_thread, 0, kcp_tick, (void *)host);
-         kcp_tick_thread_created = 1;
+         kcp_tick_thread_created = 1;*/
      }
      else if( host->flags & (VTUN_STAT|VTUN_KEEP_ALIVE) ){
         sa.sa_handler=sig_alarm;
