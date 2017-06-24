@@ -269,13 +269,14 @@ void kcp_tx(void *arg) {
         FD_SET(fd2, &fdset); // tun dev fd.
 
         tv.tv_sec  = 0;
-        tv.tv_usec = lfd_host->kcp_tick * 1000; // use ka as poll time.
+        tv.tv_usec = lfd_host->kcp_tick * 1000;
 
         if( (len = select(maxfd, &fdset, NULL, NULL, &tv)) < 0 ){
             if( errno != EAGAIN && errno != EINTR )
             break;
             else {
-                // should not continue;, need give a chance for kcp to recv.
+                // here we can continue because no data to be tx.
+                continue;
             }
         }
 
@@ -338,7 +339,7 @@ void kcp_rx(void *arg) {
         FD_SET(fd1, &fdset);
 
         tv.tv_sec  = 0;
-        tv.tv_usec = lfd_host->kcp_tick * 1000; //used as poll time.
+        tv.tv_usec = lfd_host->kcp_tick * 1000;
 
         if( (len = select(maxfd, &fdset, NULL, NULL, &tv)) < 0 ){
             if( errno != EAGAIN && errno != EINTR )
@@ -392,18 +393,27 @@ void kcp_rx(void *arg) {
             }
 
             lfd_host->stat.comp_in += len;
-            if( (len=lfd_run_up(len,buf,&out)) == -1 )
-            break;
-            if( len && dev_write(fd2,out,len) < 0 ){
-                if( errno != EAGAIN && errno != EINTR ) {
-                    vtun_syslog(LOG_ERR,"write to device failed error %s", strerror(errno));
-                    continue;
-                }
-                else {
-                    // should not continue;, need give a chance for dev read.
-                }
+            if( (len=lfd_run_up(len,buf,&out)) == -1 ) {
+                break;
             }
-            lfd_host->stat.byte_in += len;
+
+            while (1) {
+                if( len && dev_write(fd2,out,len) < 0 ) {
+                    if( errno != EAGAIN && errno != EINTR ) {
+                        vtun_syslog(LOG_ERR,"write to device failed error %s", strerror(errno));
+                        // This continue do not terminate the rx thread, might be
+                        // system error.
+                        break;
+                    } else {
+                        // This may be caused by tun queue full, rewrite again to
+                        // reduce packet drop.
+                        continue;
+                    }
+                }
+
+                break; // transmit ok.
+                lfd_host->stat.byte_in += len;
+            }
         }
     }
 
