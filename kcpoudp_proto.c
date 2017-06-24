@@ -112,7 +112,7 @@ int kcpoudp_write(char *buf, int len, struct vtun_host *host)
      /*     ikcp_update(host->kcp, s*100+ms); */
      /* } */
      // flush immediately.
-     ikcp_flush(host->kcp)
+     ikcp_flush(host->kcp);
 
      pthread_mutex_unlock(&host->kcp_lock);
      return 0;
