@@ -435,7 +435,7 @@ K_KCP_TICK NUM		{
 			}
 
   | K_KCP_XFAST NUM	{
-			  parse_host->kcp_xfast = $2 != 0 ? 1 : 0;
+			  parse_host->kcp_xfast = $2 > 3 ? 0 : $2;
 			}
   | K_KCP_SNDW NUM	{
 			  parse_host->kcp_sndw = $2 > 0 ? $2 : 1024;

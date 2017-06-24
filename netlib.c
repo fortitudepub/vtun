@@ -316,10 +316,19 @@ int kcpoudp_session(struct vtun_host *host)
      {
          if (host->flags & VTUN_KCPOUDP) {
              host->kcp = ikcp_create(kcpudp_generate_conn_id_by_host(host->host), (void *)host);
-             if (host->kcp_xfast) {
-                 ikcp_nodelay(host->kcp, 1, 10, 2, 1); // enable fast fast mode!!!
-             } else {
-                 ikcp_nodelay(host->kcp, 0, 40, 0, 0);
+             switch (host->kcp_xfast) {
+                 case 1: //fast1
+                     ikcp_nodelay(host->kcp, 0, 30, 2, 1);
+                     break;
+                 case 2: //fast2
+                     ikcp_nodelay(host->kcp, 1, 20, 2, 1);
+                     break;
+                 case 3://fast3
+                     ikcp_nodelay(host->kcp, 1, 10, 2, 1);
+                     break;
+                 default: // normal
+                     ikcp_nodelay(host->kcp, 0, 40, 2, 1);
+                     break;
              }
 
              host->kcp->rx_minrto = host->kcp_rto;
