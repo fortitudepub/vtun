@@ -1,3 +1,6 @@
+分支kcp根据目前的验证及分析结果，我对kcp协议的理解有误，将tun上的l3包跑在kcp上是一种错误，代码提交上来想使用kcp时参考。
+---------------------
+
 VTun - Virtual Tunnel over TCP/IP network.
 Copyright (C) 1998-2008 Maxim Krasnyansky <max_mk@yahoo.com>
 
